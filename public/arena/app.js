@@ -273,7 +273,7 @@ async function decide(now) {
     let result;
     if (mode === "rules") result = chooseRuleAction(snapshot);
     else {
-      const response = await fetch("/api/decide", {
+      const response = await fetch("/api/arena/decide", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(snapshot),

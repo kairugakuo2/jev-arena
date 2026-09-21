@@ -1,5 +1,14 @@
 # Version history
 
+## 4.0.0 — Jev Lab dashboard
+
+- Turned localhost:3000 into a project dashboard named Jev Lab.
+- Moved AI Gladiator to `/arena` with a visible return link to the Lab.
+- Isolated Arena browser assets under `/arena/` for future project pages.
+- Added `/api/arena/decide`; retained `/api/decide` as a compatibility alias.
+- Added shared Gateway status and a single server-side key explanation.
+- Added desktop/mobile navigation and routing tests.
+
 ## 3.0.0 — Real-time keyboard arena
 
 - Removed turn-taking and move-selection/commit controls.

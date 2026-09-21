@@ -8,8 +8,8 @@ import {
   decisionState,
   actionInput,
   legalActions,
-} from "../public/game.js";
-import { chooseRuleAction } from "../public/rule-ai.js";
+} from "../public/arena/game.js";
+import { chooseRuleAction } from "../public/arena/rule-ai.js";
 import { validateState } from "../server.js";
 import { validateDecision, buildJevRequest } from "../jev-ai.js";
 import { experimental_evaluate as evaluate } from "ai";

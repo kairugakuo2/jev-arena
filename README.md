@@ -1,6 +1,6 @@
-# Jev Arena — version 3: real-time controls
+# Jev Lab — version 4
 
-A small browser game for inspecting Jev's decisions during a **continuous 2D fight**. Plain HTML, CSS and JavaScript; a tiny Node server; no frameworks or build step.
+A local home for small projects that make Jev's decisions visible. The first project is **AI Gladiator**, a continuous 2D fight. Everything uses plain HTML, CSS and JavaScript with one tiny Node server, one shared Gateway key, and no framework or build step.
 
 ## Run
 Use Node.js 22.18 or newer. In this folder's VS Code terminal:
@@ -10,7 +10,18 @@ npm install
 npm start
 ```
 
-Open http://localhost:3000 and click **Play**. There are no turns or move confirmations.
+Open http://localhost:3000 to see the Jev Lab dashboard. Choose **AI Gladiator**, or open http://localhost:3000/arena directly. Click **Play** inside Arena. There are no turns or move confirmations.
+
+## Lab structure
+
+- `/` is the project dashboard and shared Gateway status.
+- `/arena` is AI Gladiator.
+- `/api/arena/decide` is Arena's project-specific Jev endpoint.
+- `/api/status` reports whether the shared server process has a Gateway key configured; it never returns the key.
+- `.env` is loaded once by the local server, so future projects can use the same `AI_GATEWAY_API_KEY` through their own server endpoints.
+- Arena's browser assets live under `public/arena/`, leaving room for future project folders without generic `app.js` or `styles.css` collisions.
+
+The old `/api/decide` path remains as a compatibility alias. Future projects should receive descriptive routes such as `/api/router/decide` and their own page directory, while credential loading stays centralized in `server.js`.
 
 - **A / D** or **left / right arrows**: hold to run.
 - **Space**, **W** or **up arrow**: jump. Release and press again to jump after landing.
@@ -71,14 +82,18 @@ We follow [Vercel's official Jev evaluation guide](https://vercel.com/kb/guide/t
 
 ## Files / first code to read
 ```text
-public/game.js       Read first: stepGame(), physics and simultaneous combat
-public/app.js        Read second: key handlers, frame(), decide(), stale-response handling
-jev-ai.js            Read third: live-state question and actual SDK request
-public/rule-ai.js    Simple local control policy
-public/index.html    Page and keyboard guide
-public/styles.css   Responsive interface and simple CSS fighters
-server.js           Private-key proxy and state validation
-test/game.test.js   Offline mechanics / SDK-schema tests
+public/index.html          Jev Lab dashboard and project directory
+public/hub.css             Dashboard styling
+public/hub.js              Shared Gateway status display
+public/arena.html          Arena page and keyboard guide
+public/arena/game.js       Read first: physics and simultaneous combat
+public/arena/app.js        Read second: input, game clock, Jev scheduling
+jev-ai.js                  Read third: live-state question and SDK request
+public/arena/rule-ai.js    Simple local control policy
+public/arena/styles.css    Arena styling and CSS fighters
+server.js                  Shared key, route allowlist and state validation
+test/game.test.js          Offline mechanics / SDK-schema tests
+test/navigation.test.js    Dashboard, Arena and endpoint route tests
 package.json        npm start / npm test; ai is the only direct dependency
 package-lock.json   Pinned dependency tree
 .env.example        Blank credential template
@@ -102,6 +117,7 @@ Private repository: https://github.com/kairugakuo2/jev-arena
 - `v1.0.0`: original distance-based battle.
 - `v2.0.0`: turn-based movement/attack combinations.
 - `v3.0.0`: real-time keyboard arena.
+- `v4.0.0`: Jev Lab dashboard and project-specific Arena page.
 
 For future changes, create a branch, test, commit selected source files and push. Never force-add .env. To inspect an older version without replacing this game:
 ```sh

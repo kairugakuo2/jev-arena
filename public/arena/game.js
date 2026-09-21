@@ -1,4 +1,4 @@
-// Fixed-step real-time mechanics. No DOM or network. Both fighters use identical rules.
+// Arena's fixed-step mechanics. No DOM or network. Both fighters use identical rules.
 export const ACTIONS = [
   "IDLE",
   "LEFT",

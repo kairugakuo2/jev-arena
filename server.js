@@ -3,15 +3,20 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { chooseJevAction, buildJevRequest } from "./jev-ai.js";
-import { ACTIONS, distanceBetween } from "./public/game.js";
+import { ACTIONS, distanceBetween } from "./public/arena/game.js";
 
-const files = {
+export const staticFiles = {
   "/": ["index.html", "text/html"],
-  "/styles.css": ["styles.css", "text/css"],
-  "/app.js": ["app.js", "text/javascript"],
-  "/game.js": ["game.js", "text/javascript"],
-  "/rule-ai.js": ["rule-ai.js", "text/javascript"],
+  "/arena": ["arena.html", "text/html"],
+  "/arena/": ["arena.html", "text/html"],
+  "/hub.css": ["hub.css", "text/css"],
+  "/hub.js": ["hub.js", "text/javascript"],
+  "/arena/styles.css": ["arena/styles.css", "text/css"],
+  "/arena/app.js": ["arena/app.js", "text/javascript"],
+  "/arena/game.js": ["arena/game.js", "text/javascript"],
+  "/arena/rule-ai.js": ["arena/rule-ai.js", "text/javascript"],
 };
+export const decisionPaths = new Set(["/api/arena/decide", "/api/decide"]);
 const port = Number(process.env.PORT || 3000);
 const hosts = new Set([`localhost:${port}`, `127.0.0.1:${port}`]);
 let activeRequest = false;
@@ -102,7 +107,7 @@ export const server = createServer(async (request, response) => {
       configured: Boolean(process.env.AI_GATEWAY_API_KEY),
     });
   }
-  if (request.method === "POST" && path === "/api/decide") {
+  if (request.method === "POST" && decisionPaths.has(path)) {
     if (activeRequest)
       return json(response, 429, {
         error: "A decision is already running. Please wait.",
@@ -136,9 +141,9 @@ export const server = createServer(async (request, response) => {
       activeRequest = false;
     }
   }
-  if (request.method !== "GET" || !files[path])
+  if (request.method !== "GET" || !staticFiles[path])
     return json(response, 404, { error: "Not found." });
-  const [filename, type] = files[path];
+  const [filename, type] = staticFiles[path];
   try {
     const content = await readFile(
       new URL(`./public/${filename}`, import.meta.url),
@@ -155,7 +160,7 @@ export const server = createServer(async (request, response) => {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   server.listen(port, "127.0.0.1", () =>
-    console.log(`Jev Arena → http://localhost:${port}`),
+    console.log(`Jev Lab → http://localhost:${port}`),
   );
   server.on("error", (error) => {
     console.error(

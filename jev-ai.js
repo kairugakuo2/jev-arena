@@ -1,6 +1,6 @@
 // SERVER ONLY. Never import this module into the browser.
 import { experimental_evaluate as evaluate } from "ai";
-import { ACTIONS, RULES, legalActions } from "./public/game.js";
+import { ACTIONS, RULES, legalActions } from "./public/arena/game.js";
 
 export function buildJevRequest(state) {
   return {

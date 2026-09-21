@@ -1,5 +1,5 @@
 import { ACTIONS, RULES, legalActions } from "./game.js";
-// Decides a short-lived control intent, without owning the physics clock.
+// Arena rule mode decides a short-lived intent without owning the physics clock.
 export function chooseRuleAction(state) {
   const legal = legalActions(state, "ai"),
     dx = state.player.x - state.ai.x;
