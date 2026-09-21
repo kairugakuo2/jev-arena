@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { chooseJevAction, buildJevRequest } from "./jev-ai.js";
-import { ACTIONS } from "./public/game.js";
+import { ACTIONS, distanceBetween } from "./public/game.js";
 
 const files = {
   "/": ["index.html", "text/html"],
@@ -37,7 +37,10 @@ export function validateState(input) {
       !Number.isInteger(fighter.stamina) ||
       fighter.stamina < 0 ||
       fighter.stamina > 100 ||
-      ![0, 1].includes(fighter.potions) ||
+      !Number.isInteger(fighter.x) ||
+      fighter.x < 0 ||
+      fighter.x > 6 ||
+      ![0, 1].includes(fighter.y) ||
       typeof fighter.defending !== "boolean"
     ) {
       throw new Error("Invalid fighter state.");
@@ -45,12 +48,19 @@ export function validateState(input) {
     state[name] = {
       health: fighter.health,
       stamina: fighter.stamina,
-      potions: fighter.potions,
+      x: fighter.x,
+      y: fighter.y,
       defending: fighter.defending,
     };
   }
-  if (![1, 2, 3].includes(input.distance)) throw new Error("Invalid distance.");
-  state.distance = input.distance;
+  if (state.ai.x === state.player.x) throw new Error("Overlapping fighters.");
+  const distance = distanceBetween(state.ai, state.player);
+  if (
+    typeof input.distance !== "number" ||
+    Math.abs(input.distance - distance) > 0.00001
+  )
+    throw new Error("Invalid distance.");
+  state.distance = distance;
   for (const key of ["previous_player_action", "previous_ai_action"]) {
     if (input[key] !== null && !ACTIONS.includes(input[key]))
       throw new Error("Invalid previous action.");

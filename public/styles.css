@@ -997,3 +997,93 @@ footer {
     scroll-behavior: auto !important;
   }
 }
+:root {
+  --arena-step: 12%;
+}
+.movements {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.movement-button {
+  background: #222b1d;
+  border: 1px solid #536a3b;
+  border-radius: 5px;
+  min-height: 44px;
+}
+.movement-button[aria-pressed="true"] {
+  background: var(--lime);
+  color: #162010;
+}
+#actions {
+  grid-template-columns: repeat(2, 1fr);
+  margin-top: 12px;
+}
+#move-preview {
+  min-height: 24px;
+}
+.stage[data-distance="free"] {
+  height: 300px;
+  background: linear-gradient(
+    transparent 83%,
+    #4a5f35 83%,
+    #273221 85%,
+    #1a2016 86%
+  );
+}
+.stage[data-distance="free"] .stage-grid {
+  inset: 0 8%;
+  transform: none;
+  background-size: calc(100% / 7) 100%;
+}
+.stage[data-distance="free"] .orbit {
+  display: none;
+}
+.stage[data-distance="free"] .avatar {
+  right: auto;
+  bottom: 45px;
+  margin-left: -37px;
+  transition:
+    left 0.35s,
+    bottom 0.35s;
+}
+.stage[data-distance="free"] .avatar[data-x="0"] {
+  left: 14%;
+}
+.stage[data-distance="free"] .avatar[data-x="1"] {
+  left: 26%;
+}
+.stage[data-distance="free"] .avatar[data-x="2"] {
+  left: 38%;
+}
+.stage[data-distance="free"] .avatar[data-x="3"] {
+  left: 50%;
+}
+.stage[data-distance="free"] .avatar[data-x="4"] {
+  left: 62%;
+}
+.stage[data-distance="free"] .avatar[data-x="5"] {
+  left: 74%;
+}
+.stage[data-distance="free"] .avatar[data-x="6"] {
+  left: 86%;
+}
+.stage[data-distance="free"] .avatar[data-y="1"] {
+  bottom: 125px;
+}
+.stage[data-distance="free"] .avatar.guarding .shield {
+  filter: brightness(1.6);
+  transform: scale(1.2);
+}
+.prob-label {
+  font-size: 9px;
+}
+@media (max-width: 760px) {
+  .stage[data-distance="free"] .avatar {
+    scale: 0.65;
+    transform-origin: bottom center;
+  }
+}
+.lane-labels { position:absolute; bottom:8px; left:8%; right:8%; display:grid; grid-template-columns:repeat(7,1fr); text-align:center; color:var(--muted); font:10px var(--mono); }
+.fighter-foot { gap:8px; }

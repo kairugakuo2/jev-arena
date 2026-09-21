@@ -30,13 +30,10 @@
             <p class="eyebrow">MEET YOUR OPPONENT. UNDERSTAND ITS DECISIONS.</p>
             <h1>Instinct meets <em>intelligence.</em></h1>
             <p class="intro-copy">
-              Five moves. One decision. Step into the arena and see how Jev
-              chooses.
+              Move. Jump. Strike. Step into the arena and see how Jev chooses.
             </p>
           </div>
-          <span class="version"
-            >EXPERIMENT 001 <span>/</span> AI GLADIATOR</span
-          >
+          <span class="version">VERSION 2.0 <span>/</span> AI GLADIATOR</span>
         </section>
         <div class="toolbar">
           <div class="modes" role="group" aria-label="Opponent mode">
@@ -79,7 +76,7 @@
                   value="100"
                 ></progress>
                 <div class="fighter-foot">
-                  <span id="player-potions">1 potion</span
+                  <span id="player-position">Lane 2 · Grounded</span
                   ><span id="player-guard">Unguarded</span>
                 </div>
               </article>
@@ -105,7 +102,7 @@
                   value="100"
                 ></progress>
                 <div class="fighter-foot">
-                  <span id="ai-potions">1 potion</span
+                  <span id="ai-position">1 potion</span
                   ><span id="ai-guard">Unguarded</span>
                 </div>
               </article>
@@ -130,13 +127,11 @@
                 <div class="sword"></div>
                 <span>GLADIATOR 02</span>
               </div>
-              <span class="stage-center">+</span>
+              <span class="stage-center">+</span><div class="lane-labels" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span></div>
             </div>
             <div class="distance-indicator">
               <span>DISTANCE</span>
-              <div id="distance-pips" aria-hidden="true">
-                <i></i><i></i><i></i>
-              </div>
+              <div id="distance-pips" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
               <strong id="distance">2 · Medium range</strong>
             </div>
             <div class="turn-banner" role="status" id="turn-status">
@@ -145,8 +140,17 @@
             <div class="controls">
               <div class="controls-label">
                 <span class="eyebrow">YOUR MOVE</span
-                ><span>One action per turn</span>
+                ><span>Move + attack or defend</span>
               </div>
+              <div
+                class="movements"
+                id="movements"
+                role="group"
+                aria-label="Choose movement"
+              ></div>
+              <p id="move-preview" class="hint">
+                Choose movement, then attack or defend.
+              </p>
               <div class="actions" id="actions"></div>
               <p class="hint" id="move-hint">
                 Close the gap to attack. Defend to recover stamina.
@@ -212,29 +216,32 @@ Available after a successful Jev request.</pre
           </summary>
           <div class="guide-content">
             <p>
-              <strong>Attack</strong> At distance 1, spend 20 stamina to deal 24
-              damage (6 against a guard).
+              <strong>One turn, two choices</strong>Select Stay, Left, Right or
+              Jump. Then click Attack or Defend to commit. The AI gets the same
+              choices.
             </p>
             <p>
-              <strong>Defend</strong> Restore 25 stamina. Guard until your next
-              action, reducing the next opponent turn’s damage.
+              <strong>Movement</strong>Left/right costs 5 stamina and moves one
+              of seven lanes. Stay is free. Fighters cannot share a lane.
             </p>
             <p>
-              <strong>Approach / Retreat</strong> Move one step closer / farther
-              and recover 10 stamina. Distance stays between 1 and 3.
+              <strong>Jump</strong>Costs 15 stamina. Dodge ground strikes until
+              your next turn. Land for one turn before jumping again.
             </p>
             <p>
-              <strong>Heal</strong> Use your one potion to restore 30 health, up
-              to 100. No stamina cost.
+              <strong>Attack</strong>Costs 20 stamina after movement. Reach: one
+              horizontal lane. Ground damage: 24. Jump damage: 16, and can hit
+              downward. Out-of-range swings miss but still cost stamina.
             </p>
             <p>
-              <strong>Turn order</strong> You act, then the opponent. No dice or
-              critical hits. Zero health ends the battle; 50 rounds is a draw.
+              <strong>Defend &amp; counter</strong>Restore 25 stamina and reduce
+              incoming damage to 6. Counter ground attacks for 12 damage if you
+              have 10 stamina to spend. Jump attacks avoid counters.
             </p>
             <p>
-              <strong>Compare modes</strong> Switch at any time between turns.
-              The battle state stays the same; the next decision uses the
-              selected engine.
+              <strong>Keep it simple</strong>No potions or random damage.
+              Health/stamina cap at 100. Zero health ends the battle; 50 rounds
+              is a draw. Mode switching preserves the battle.
             </p>
           </div>
         </details>

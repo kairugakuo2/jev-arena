@@ -1,5 +1,8 @@
 import {
   ACTIONS,
+  MOVES,
+  previewPosition,
+  attackConnects,
   newGame,
   actionProblem,
   decisionState,
@@ -10,27 +13,38 @@ import { chooseRuleAction } from "./rule-ai.js";
 const $ = (id) => document.getElementById(id);
 let game = newGame();
 let mode = "jev";
+let selectedMove = "STAY";
 let busy = false;
 let decision = null;
 let pendingState = null;
 let actionCount = 0;
 let requestController = null;
 let generation = 0; // A reset invalidates any older in-flight response.
-const labels = {
-  ATTACK: ["⚔", "−20 stamina"],
-  DEFEND: ["◇", "+25 stamina"],
-  APPROACH: ["→", "+10 stamina"],
-  RETREAT: ["←", "+10 stamina"],
-  HEAL: ["+", "+30 health"],
-};
-
-for (const action of ACTIONS) {
+const labels = { ATTACK: ["⚔", "20 stamina"], DEFEND: ["◇", "+25 stamina"] };
+for (const move of MOVES) {
+  const button = document.createElement("button");
+  button.textContent = {
+    STAY: "• Stay",
+    LEFT: "← Left",
+    RIGHT: "Right →",
+    JUMP: "↑ Jump",
+  }[move];
+  button.dataset.move = move;
+  button.className = "movement-button";
+  button.addEventListener("click", () => {
+    selectedMove = move;
+    render();
+  });
+  $("movements").append(button);
+}
+for (const combat of ["ATTACK", "DEFEND"]) {
   const button = document.createElement("button");
   button.className = "action-button";
-  button.dataset.action = action;
-  const [icon, cost] = labels[action];
-  button.innerHTML = `<span class="action-icon" aria-hidden="true">${icon}</span><span class="action-name">${action}</span><span class="action-cost">${cost}</span>`;
-  button.addEventListener("click", () => playerTurn(action));
+  button.dataset.action = combat;
+  button.innerHTML = `<span class="action-icon" aria-hidden="true">${labels[combat][0]}</span><span class="action-name">${combat}</span><span class="action-cost">${labels[combat][1]}</span>`;
+  button.addEventListener("click", () =>
+    playerTurn(`${selectedMove}_${combat}`),
+  );
   $("actions").append(button);
 }
 
@@ -40,18 +54,22 @@ function render() {
       $(`${actor}-${stat}`).value = game[actor][stat];
       $(`${actor}-${stat}-text`).textContent = `${game[actor][stat]} / 100`;
     }
-    $(`${actor}-potions`).textContent =
-      `${game[actor].potions} potion${game[actor].potions === 1 ? "" : "s"}`;
+    $(`${actor}-position`).textContent =
+      `Lane ${game[actor].x + 1} · ${game[actor].y ? "Airborne" : "Grounded"}`;
+    const avatar = document.querySelector(`.avatar-${actor}`);
+    avatar.dataset.x = game[actor].x;
+    avatar.dataset.y = game[actor].y;
+    avatar.classList.toggle("guarding", game[actor].defending);
     $(`${actor}-guard`).textContent = game[actor].defending
       ? "◇ Guard active"
       : "Unguarded";
   }
   $("round").textContent = String(game.round).padStart(2, "0");
   $("distance").textContent =
-    `${game.distance} · ${["", "Close", "Medium", "Long"][game.distance]} range`;
-  $("stage").dataset.distance = game.distance;
+    `${game.distance.toFixed(1)} units · ${Math.abs(game.player.x - game.ai.x) <= 1 ? "Melee range" : "Out of reach"}`;
+  $("stage").dataset.distance = "free";
   [...$("distance-pips").children].forEach((pip, index) =>
-    pip.classList.toggle("active", index < game.distance),
+    pip.classList.toggle("active", index < Math.abs(game.player.x - game.ai.x)),
   );
   $("opponent-name").textContent = mode === "jev" ? "Jev" : "Rule Bot";
   $("opponent-type").textContent = mode === "jev" ? "AI MODEL" : "RULE ENGINE";
@@ -60,10 +78,29 @@ function render() {
   $("jev-mode").disabled = busy;
   $("rule-mode").disabled = busy;
   for (const button of $("actions").children) {
-    const problem = actionProblem(game, "player", button.dataset.action);
+    const problem = actionProblem(
+      game,
+      "player",
+      `${selectedMove}_${button.dataset.action}`,
+    );
     button.disabled = Boolean(problem || busy || game.turn !== "player");
     button.title = problem || labels[button.dataset.action][1];
   }
+  for (const button of $("movements").children) {
+    const move = button.dataset.move;
+    const problem = actionProblem(game, "player", `${move}_DEFEND`);
+    button.disabled = Boolean(problem || busy || game.turn !== "player");
+    button.title =
+      problem ||
+      (move === "JUMP"
+        ? "15 stamina · dodge ground attacks"
+        : move === "STAY"
+          ? "No movement cost"
+          : "5 stamina · one lane");
+    button.setAttribute("aria-pressed", String(move === selectedMove));
+  }
+  $("move-preview").textContent =
+    `Selected: ${selectedMove.toLowerCase()} → choose attack or defend to commit.`;
   $("retry").hidden = game.turn !== "ai" || busy || Boolean(game.winner);
   $("retry").textContent =
     mode === "jev" ? "Retry Jev turn ↻" : "Continue with rule-based AI →";
@@ -82,9 +119,9 @@ function render() {
         : "Your turn. Choose your next move.";
   $("move-hint").textContent = game.winner
     ? "Start a new battle to try another strategy."
-    : game.distance > 1
-      ? "Close the gap to attack. Movement also restores stamina."
-      : "You are in striking range. A guard reduces 24 damage to 6.";
+    : attackConnects(previewPosition(game, "player", selectedMove), game.ai)
+      ? "Attack will connect. Jump strikes dodge counters; defense punishes ground attacks."
+      : "Attack would miss from this position. Reposition and defend to recover.";
 }
 
 function renderDecision() {
@@ -100,7 +137,7 @@ function renderDecision() {
     const label = document.createElement("div");
     label.className = "prob-label";
     const name = document.createElement("span");
-    name.textContent = action;
+    name.textContent = action.replace("_", " + ");
     const value = document.createElement("span");
     value.textContent = p == null ? "—" : `${(p * 100).toFixed(1)}%`;
     label.append(name, value);
@@ -126,7 +163,8 @@ function renderDecision() {
   $("decision-round").textContent = decision
     ? `ROUND ${decision.round} · ${source === "jev" ? "JEV" : "RULES"}`
     : "AWAITING TURN";
-  $("chosen-action").textContent = decision?.action ?? "Waiting for your move";
+  $("chosen-action").textContent =
+    decision?.action.replace("_", " + ") ?? "Waiting for your move";
   $("decision-timing").textContent = decision
     ? `${Math.round(decision.elapsed)} ms · ${source === "jev" ? "Jev choice" : "Rule match"}`
     : "State → evaluation → action";
@@ -239,6 +277,7 @@ async function aiTurn() {
     }
     execute("ai", decision.action, decision.source);
     pendingState = null;
+    selectedMove = "STAY";
     renderDecision();
   } catch (error) {
     if (generation !== thisGeneration) return;
@@ -280,6 +319,7 @@ $("reset").addEventListener("click", () => {
   requestController?.abort();
   requestController = null;
   game = newGame();
+  selectedMove = "STAY";
   busy = false;
   decision = null;
   pendingState = null;

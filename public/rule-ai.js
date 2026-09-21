@@ -1,20 +1,49 @@
-import { ACTIONS } from "./game.js";
-
-// A transparent priority list, not a model. 100% means a deterministic rule.
+import {
+  ACTIONS,
+  legalActions,
+  previewPosition,
+  attackConnects,
+} from "./game.js";
+// Same movement/cost restrictions as Jev; a fixed priority list chooses the turn.
 export function chooseRuleAction(state) {
-  let action, rule;
-  if (state.ai.health < 25 && state.ai.potions > 0) {
-    action = "HEAL";
-    rule = "Health < 25 and a potion remains → HEAL.";
-  } else if (state.distance > 1) {
-    action = "APPROACH";
-    rule = "Distance > 1 → APPROACH.";
-  } else if (state.ai.stamina >= 20) {
-    action = "ATTACK";
-    rule = "In range with at least 20 stamina → ATTACK.";
+  const legal = legalActions(state, "ai"),
+    toward = state.player.x < state.ai.x ? "LEFT" : "RIGHT";
+  let action = "STAY_DEFEND",
+    rule = "Recover stamina and guard.";
+  if (
+    legal.includes("JUMP_ATTACK") &&
+    attackConnects(previewPosition(state, "ai", "JUMP"), state.player) &&
+    (state.player.defending || state.player.y === 1)
+  ) {
+    action = "JUMP_ATTACK";
+    rule = "Jump to reach an airborne opponent or avoid a ground counter.";
   } else {
-    action = "DEFEND";
-    rule = "Insufficient stamina → DEFEND to recover.";
+    const attack = [`${toward}_ATTACK`, "STAY_ATTACK"].find(
+      (a) =>
+        legal.includes(a) &&
+        attackConnects(
+          previewPosition(state, "ai", a.split("_")[0]),
+          state.player,
+        ) &&
+        (!state.player.defending || state.player.health <= 6),
+    );
+    if (attack) {
+      action = attack;
+      rule = "Move into reach if needed, then strike an exposed opponent.";
+    } else if (
+      Math.abs(state.ai.x - state.player.x) > 1 &&
+      legal.includes(`${toward}_DEFEND`)
+    ) {
+      action = `${toward}_DEFEND`;
+      rule = "Close the gap while guarding and recovering stamina.";
+    } else if (
+      legal.includes("JUMP_DEFEND") &&
+      state.ai.health <= 30 &&
+      state.player.y === 0
+    ) {
+      action = "JUMP_DEFEND";
+      rule = "Jump to dodge a ground attack while recovering.";
+    }
   }
   return {
     action,

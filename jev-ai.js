@@ -9,25 +9,22 @@ export function buildJevRequest(state) {
     questions: {
       action: {
         type: "choice",
-        instructions: `Choose exactly one best action for the AI gladiator to win a turn-based duel.
-The player has already acted. The AI acts now, then the player acts next.
-Health and stamina are capped at ${RULES.maxHealth}. Distance is shared (1 close, 2 medium, 3 far).
-ATTACK costs ${RULES.attackCost} stamina and deals ${RULES.damage} damage at distance 1 only.
-Against a defending opponent it deals ${RULES.guardedDamage} damage.
-DEFEND restores ${RULES.defendRecovery} stamina and guards against the opponent's next turn.
-An actor's old guard expires when that actor takes its next action.
-APPROACH/RETREAT change distance by one within 1–3 and restore ${RULES.moveRecovery} stamina.
-HEAL consumes one potion and restores ${RULES.healing} health, capped at 100.
-Choose ONLY a currently legal action: ${legalActions(state, "ai").join(", ")}.
-Prefer survival and useful damage; avoid wasting a potion or attacking a guard when another action is better.
-Return the typed choice with its probability distribution. Do not generate reasoning or prose.`,
-        criteria: {
-          ATTACK: "Strike the player at close range, spending stamina.",
-          DEFEND: "Reduce incoming damage and recover stamina.",
-          APPROACH: "Move closer to get into attack range.",
-          RETREAT: "Move farther away to avoid a close-range attack.",
-          HEAL: "Consume a potion to recover health.",
-        },
+        instructions: `Choose one complete turn for the AI gladiator: movement plus ATTACK or DEFEND.
+The player has already acted. State includes x lane 0–6, y elevation 0 grounded or 1 airborne, health, stamina and guard.
+At the START of the acting fighter's turn, its old jump ends and guard expires.
+STAY stays in the same lane; LEFT/RIGHT move one lane for 5 stamina; JUMP stays in its lane, elevates to y=1 and costs 15.
+An airborne fighter cannot JUMP again on its next turn: it must land for a turn. Fighters cannot share a lane.
+Movement costs are paid BEFORE the combat action. ATTACK costs 20 more stamina. DEFEND restores 25 stamina, capped at 100.
+Attack hits only within one horizontal lane. Ground attacks MISS an airborne target; jump attacks can hit ground or airborne targets.
+Ground attacks deal 24 damage; jump attacks deal 16. Guard reduces either to 6.
+A living guarded target counters a grounded attacker for ${RULES.counterDamage} damage, spending ${RULES.counterCost} stamina if available. Jump attacks avoid counters.
+Jump/guard lasts through the opponent's next turn. Every action ends your turn. Out-of-range attacks waste their stamina.
+The goal is to win using positioning, dodging, and stamina; do not blindly trade attacks.
+Choose ONLY a legal combined action: ${legalActions(state, "ai").join(", ")}.
+Return the typed choice and probabilities. Do not generate reasoning or prose.`,
+        criteria: Object.fromEntries(
+          ACTIONS.map((action) => [action, action.replace("_", " then ")]),
+        ),
       },
     },
   };
