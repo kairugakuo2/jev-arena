@@ -1,5 +1,17 @@
 # Version history
 
+## 3.0.0 — Real-time keyboard arena
+
+- Removed turn-taking and move-selection/commit controls.
+- Hold A/D or arrows to move continuously, Space/W/up to jump, J to attack, K/Shift to guard.
+- Shared 60 Hz physics with gravity, aerial steering, cooldowns, continuous stamina and simultaneous damage.
+- Jev chooses short control intents from live position/velocity/cooldown snapshots independently of player input.
+- At most two request starts per second, one in flight; expired intents stop, stale responses are ignored.
+- Play/pause, automatic pause on blur/hidden page, request backoff, and reset/mode-switch cancellation.
+- On-screen hold controls for touch and keyboard-accessible buttons.
+- Verified real Jev response with the new schema; one live test completed in about 700 ms.
+
+
 ## 2.0.0 — Movement arena
 
 - Seven-lane 2D platform, with visible grounded/airborne positions.

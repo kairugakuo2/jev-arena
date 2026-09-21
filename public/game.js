@@ -1,152 +1,187 @@
-// Pure combat rules shared by the browser and server. No randomness or API calls.
-export const MOVES = ["STAY", "LEFT", "RIGHT", "JUMP"];
-export const ACTIONS = MOVES.flatMap((move) =>
-  ["ATTACK", "DEFEND"].map((action) => `${move}_${action}`),
-);
+// Fixed-step real-time mechanics. No DOM or network. Both fighters use identical rules.
+export const ACTIONS = [
+  "IDLE",
+  "LEFT",
+  "RIGHT",
+  "JUMP",
+  "ATTACK",
+  "DEFEND",
+  "LEFT_ATTACK",
+  "RIGHT_ATTACK",
+  "LEFT_DEFEND",
+  "RIGHT_DEFEND",
+  "JUMP_ATTACK",
+  "JUMP_DEFEND",
+];
 export const RULES = {
-  maxHealth: 100,
-  maxStamina: 100,
-  attackCost: 20,
-  damage: 24,
-  jumpDamage: 16,
-  guardedDamage: 6,
-  counterDamage: 12,
-  counterCost: 10,
-  defendRecovery: 25,
-  moveCost: 5,
-  jumpCost: 15,
-  arenaWidth: 7,
-  maxRounds: 50,
+  width: 10,
+  speed: 3.4,
+  gravity: 18,
+  jumpSpeed: 8,
+  jumpCost: 12,
+  attackCost: 18,
+  damage: 16,
+  guardedDamage: 4,
+  counterDamage: 6,
+  counterCost: 8,
+  attackCooldown: 0.65,
+  reach: 1.25,
+  verticalReach: 0.8,
+  maxSeconds: 180,
 };
-export function splitAction(action) {
-  const [move, combat] = String(action).split("_");
-  return { move, combat };
-}
-export function distanceBetween(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
 export function newGame() {
   const fighter = (x) => ({
     health: 100,
     stamina: 100,
     x,
     y: 0,
+    vy: 0,
+    vx: 0,
     defending: false,
+    cooldown: 0,
+    jumpHeld: false,
   });
   return {
-    player: fighter(1),
-    ai: fighter(5),
-    distance: 4,
-    round: 1,
-    turn: "player",
+    player: fighter(2),
+    ai: fighter(8),
+    elapsed: 0,
+    winner: null,
     previous_player_action: null,
     previous_ai_action: null,
-    winner: null,
   };
 }
-export function movementCost(move) {
-  return move === "JUMP"
-    ? RULES.jumpCost
-    : move === "STAY"
-      ? 0
-      : RULES.moveCost;
+export const neutralInput = () => ({
+  move: 0,
+  jump: false,
+  attack: false,
+  defend: false,
+});
+export function actionInput(action) {
+  const input = neutralInput();
+  if (action.includes("LEFT")) input.move = -1;
+  if (action.includes("RIGHT")) input.move = 1;
+  input.jump = action.includes("JUMP");
+  input.attack = action.includes("ATTACK");
+  input.defend = action.includes("DEFEND");
+  return input;
 }
-// Land at the start of the next turn. Jump has a one-turn cooldown.
-export function previewPosition(state, actor, move) {
-  const f = state[actor];
-  return {
-    x: f.x + (move === "LEFT" ? -1 : move === "RIGHT" ? 1 : 0),
-    y: move === "JUMP" ? 1 : 0,
-  };
+export function distanceBetween(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
 }
-export function actionProblem(state, actor, action) {
-  if (!ACTIONS.includes(action)) return "Unknown action.";
-  if (state.winner) return "The battle has ended.";
-  const { move, combat } = splitAction(action),
-    f = state[actor],
-    target = state[actor === "player" ? "ai" : "player"],
-    position = previewPosition(state, actor, move);
-  if (position.x < 0 || position.x >= RULES.arenaWidth)
-    return "The edge of the arena blocks this move.";
-  if (position.x === target.x) return "The opponent occupies that lane.";
-  if (move === "JUMP" && f.y === 1)
-    return "Land for one turn before jumping again.";
-  const cost =
-    movementCost(move) + (combat === "ATTACK" ? RULES.attackCost : 0);
-  if (f.stamina < cost) return `Requires ${cost} stamina before recovery.`;
-  return null;
-}
-export function legalActions(state, actor) {
-  return ACTIONS.filter((a) => !actionProblem(state, actor, a));
+export function attackConnects(a, b) {
+  return (
+    Math.abs(a.x - b.x) <= RULES.reach &&
+    Math.abs(a.y - b.y) <= RULES.verticalReach
+  );
 }
 export function decisionState(state) {
+  const snapshot = (f) =>
+    Object.fromEntries(
+      ["health", "stamina", "x", "y", "vx", "vy", "defending", "cooldown"].map(
+        (k) => [k, typeof f[k] === "number" ? Number(f[k].toFixed(4)) : f[k]],
+      ),
+    );
+  const ai = snapshot(state.ai),
+    player = snapshot(state.player);
   return {
-    ai: { ...state.ai },
-    player: { ...state.player },
-    distance: distanceBetween(state.ai, state.player),
+    ai,
+    player,
+    distance: distanceBetween(ai, player),
+    elapsed: Number(state.elapsed.toFixed(3)),
     previous_player_action: state.previous_player_action,
     previous_ai_action: state.previous_ai_action,
   };
 }
-export function attackConnects(attacker, target) {
-  // Jump attacks reach downward. Ground attacks cannot hit an airborne fighter.
-  return (
-    Math.abs(attacker.x - target.x) <= 1 && (attacker.y === 1 || target.y === 0)
+export function legalActions(state, actor) {
+  if (state.winner || state[actor].health <= 0) return [];
+  const f = state[actor];
+  return ACTIONS.filter(
+    (a) =>
+      !(a.includes("JUMP") && (f.y > 0.01 || f.stamina < RULES.jumpCost)) &&
+      !(
+        a.includes("ATTACK") &&
+        (f.cooldown > 0 ||
+          f.stamina <
+            RULES.attackCost + (a.includes("JUMP") ? RULES.jumpCost : 0))
+      ) &&
+      !(a.includes("LEFT") && f.x <= 0.35) &&
+      !(a.includes("RIGHT") && f.x >= RULES.width - 0.35),
   );
 }
-export function executeAction(state, actor, action) {
-  if (state.turn !== actor) throw new Error("It is not this fighter's turn.");
-  const problem = actionProblem(state, actor, action);
-  if (problem) throw new Error(problem);
-  const next = structuredClone(state),
-    fighter = next[actor],
-    opponent = actor === "player" ? "ai" : "player",
-    target = next[opponent],
-    { move, combat } = splitAction(action);
-  Object.assign(fighter, previewPosition(state, actor, move));
-  fighter.stamina -= movementCost(move);
-  fighter.defending = combat === "DEFEND";
-  const name = actor === "player" ? "You" : "Gladiator";
-  let message = `${name}: ${move.toLowerCase()} + ${combat.toLowerCase()}. `;
-  if (combat === "DEFEND") {
-    const recovery = Math.min(RULES.defendRecovery, 100 - fighter.stamina);
-    fighter.stamina += recovery;
-    message += `Guard up; recovered ${recovery} stamina.`;
-  } else {
-    fighter.stamina -= RULES.attackCost;
-    if (!attackConnects(fighter, target))
-      message +=
-        target.y > fighter.y && Math.abs(fighter.x - target.x) <= 1
-          ? "Miss — the opponent is airborne."
-          : "Miss — out of reach.";
-    else {
-      const damage = target.defending
-        ? RULES.guardedDamage
-        : fighter.y
-          ? RULES.jumpDamage
-          : RULES.damage;
-      target.health = Math.max(0, target.health - damage);
-      message += `${damage} damage${target.defending ? " against a guard" : ""}.`;
-      if (
-        target.health > 0 &&
-        target.defending &&
-        fighter.y === 0 &&
-        target.stamina >= RULES.counterCost
-      ) {
-        target.stamina -= RULES.counterCost;
-        fighter.health = Math.max(0, fighter.health - RULES.counterDamage);
-        message += ` Countered for ${RULES.counterDamage}; defender spends ${RULES.counterCost} stamina.`;
-      }
+function describeInput(i) {
+  if (i.jump)
+    return i.attack ? "JUMP_ATTACK" : i.defend ? "JUMP_DEFEND" : "JUMP";
+  const move = i.move < 0 ? "LEFT" : i.move > 0 ? "RIGHT" : "";
+  return i.attack
+    ? move
+      ? move + "_ATTACK"
+      : "ATTACK"
+    : i.defend
+      ? move
+        ? move + "_DEFEND"
+        : "DEFEND"
+      : move || "IDLE";
+}
+// Mutates the supplied world once per fixed step. Returns only discrete combat events.
+export function stepGame(state, inputs, dt) {
+  if (state.winner) return [];
+  dt = Math.max(0, Math.min(dt, 1 / 30));
+  state.elapsed += dt;
+  const events = [];
+  for (const actor of ["player", "ai"]) {
+    const f = state[actor],
+      i = inputs[actor] || neutralInput();
+    f.cooldown = Math.max(0, f.cooldown - dt);
+    f.defending = Boolean(i.defend && !i.attack && f.stamina > 0);
+    f.stamina = Math.min(
+      100,
+      Math.max(0, f.stamina + (f.defending ? -8 : 12) * dt),
+    );
+    if (f.stamina === 0) f.defending = false;
+    if (i.jump && !f.jumpHeld && f.y === 0 && f.stamina >= RULES.jumpCost) {
+      f.vy = RULES.jumpSpeed;
+      f.stamina -= RULES.jumpCost;
+      events.push({ actor, text: "Jumped." });
     }
+    f.jumpHeld = Boolean(i.jump);
+    f.vx = Math.sign(i.move) * (f.defending ? RULES.speed * 0.5 : RULES.speed);
+    f.x = Math.min(RULES.width - 0.35, Math.max(0.35, f.x + f.vx * dt));
+    f.vy -= RULES.gravity * dt;
+    f.y = Math.max(0, f.y + f.vy * dt);
+    if (f.y === 0) f.vy = 0;
+    state["previous_" + actor + "_action"] = describeInput(i);
   }
-  next.distance = distanceBetween(next.ai, next.player);
-  next[`previous_${actor}_action`] = action;
-  if (target.health === 0) next.winner = actor;
-  else if (fighter.health === 0) next.winner = opponent;
-  next.turn = opponent;
-  if (actor === "ai") {
-    if (next.round === RULES.maxRounds && !next.winner) next.winner = "draw";
-    else if (!next.winner) next.round++;
+  // Deliberately no body collision: fighters can run past/jump over each other.
+  // Both attacks resolve from the same post-movement snapshot, so simultaneous KOs can draw.
+  const damage = { player: 0, ai: 0 };
+  for (const actor of ["player", "ai"]) {
+    const targetName = actor === "player" ? "ai" : "player",
+      f = state[actor],
+      target = state[targetName],
+      i = inputs[actor] || neutralInput();
+    if (!i.attack || f.cooldown > 0 || f.stamina < RULES.attackCost) continue;
+    f.stamina -= RULES.attackCost;
+    f.cooldown = RULES.attackCooldown;
+    f.defending = false;
+    if (!attackConnects(f, target)) {
+      events.push({ actor, text: "Attack missed — out of reach." });
+      continue;
+    }
+    const hit = target.defending ? RULES.guardedDamage : RULES.damage;
+    damage[targetName] += hit;
+    let text = `Attack hit for ${hit}${target.defending ? " (guarded)" : ""}.`;
+    if (target.defending && target.stamina >= RULES.counterCost) {
+      target.stamina -= RULES.counterCost;
+      damage[actor] += RULES.counterDamage;
+      text += ` Countered for ${RULES.counterDamage}.`;
+    }
+    events.push({ actor, text });
   }
-  return { state: next, message };
+  for (const actor of ["player", "ai"])
+    state[actor].health = Math.max(0, state[actor].health - damage[actor]);
+  if (state.ai.health === 0 && state.player.health === 0) state.winner = "draw";
+  else if (state.ai.health === 0) state.winner = "player";
+  else if (state.player.health === 0) state.winner = "ai";
+  else if (state.elapsed >= RULES.maxSeconds) state.winner = "draw";
+  return events;
 }

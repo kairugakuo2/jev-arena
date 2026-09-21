@@ -9,19 +9,18 @@ export function buildJevRequest(state) {
     questions: {
       action: {
         type: "choice",
-        instructions: `Choose one complete turn for the AI gladiator: movement plus ATTACK or DEFEND.
-The player has already acted. State includes x lane 0–6, y elevation 0 grounded or 1 airborne, health, stamina and guard.
-At the START of the acting fighter's turn, its old jump ends and guard expires.
-STAY stays in the same lane; LEFT/RIGHT move one lane for 5 stamina; JUMP stays in its lane, elevates to y=1 and costs 15.
-An airborne fighter cannot JUMP again on its next turn: it must land for a turn. Fighters cannot share a lane.
-Movement costs are paid BEFORE the combat action. ATTACK costs 20 more stamina. DEFEND restores 25 stamina, capped at 100.
-Attack hits only within one horizontal lane. Ground attacks MISS an airborne target; jump attacks can hit ground or airborne targets.
-Ground attacks deal 24 damage; jump attacks deal 16. Guard reduces either to 6.
-A living guarded target counters a grounded attacker for ${RULES.counterDamage} damage, spending ${RULES.counterCost} stamina if available. Jump attacks avoid counters.
-Jump/guard lasts through the opponent's next turn. Every action ends your turn. Out-of-range attacks waste their stamina.
-The goal is to win using positioning, dodging, and stamina; do not blindly trade attacks.
-Choose ONLY a legal combined action: ${legalActions(state, "ai").join(", ")}.
-Return the typed choice and probabilities. Do not generate reasoning or prose.`,
+        instructions: `Control the AI fighter in a continuous real-time 2D duel. There are NO turns.
+The supplied state is a snapshot; the player keeps moving while you decide. Choose a short control intent lasting at most 0.7 seconds.
+Coordinates: x within 0.35–9.65, y is height above floor, vx/vy are velocities in units/second. Fighters can pass through each other.
+LEFT/RIGHT run at ${RULES.speed} units/second. Movement is free. JUMP launches upward only when grounded, costs ${RULES.jumpCost} stamina; gravity lands automatically.
+ATTACK swings immediately if off cooldown, and can repeat every ${RULES.attackCooldown}s while held, costing ${RULES.attackCost} stamina.
+Hit requires horizontal separation <= ${RULES.reach} and vertical separation <= ${RULES.verticalReach}; otherwise it misses.
+Every hit deals ${RULES.damage}; a guarding target takes ${RULES.guardedDamage} and counters for ${RULES.counterDamage} if it can spend ${RULES.counterCost} stamina.
+DEFEND holds guard, halves running speed, drains 8 stamina/second. Releasing guard regenerates 12 stamina/second. Resources cap at 100.
+Combined actions apply movement/jump and attack/defend together. IDLE releases all controls to recover stamina.
+Anticipate motion from velocities. Close distance before attacking; retreat to recover; jump to evade.
+Currently available actions: ${legalActions(state, "ai").join(", ")}.
+Choose one of them. Return typed choice and native probabilities only, no reasoning or prose.`,
         criteria: Object.fromEntries(
           ACTIONS.map((action) => [action, action.replace("_", " then ")]),
         ),
@@ -32,11 +31,13 @@ Return the typed choice and probabilities. Do not generate reasoning or prose.`,
 
 export function validateDecision(answer, state) {
   if (answer?.type !== "choice" || !ACTIONS.includes(answer.choice)) {
-    throw new Error("Jev returned an unknown action. Retry this turn.");
+    throw new Error(
+      "Jev returned an unknown action. A fresh snapshot will be tried.",
+    );
   }
   if (!legalActions(state, "ai").includes(answer.choice)) {
     throw new Error(
-      `Jev chose an unavailable action (${answer.choice}). Retry this turn.`,
+      `Jev chose an unavailable action (${answer.choice}). A fresh snapshot will be tried.`,
     );
   }
   // Missing probabilities are not zero probabilities: never invent a distribution.
@@ -54,7 +55,7 @@ export function validateDecision(answer, state) {
     Math.abs(sum - 1) > 0.02
   ) {
     throw new Error(
-      "Jev returned an invalid probability distribution. Retry this turn.",
+      "Jev returned an invalid probability distribution. A fresh snapshot will be tried.",
     );
   }
   return { action: answer.choice, probabilities };
@@ -73,7 +74,7 @@ export async function chooseJevAction(state) {
     result = await evaluate({
       ...request,
       maxRetries: 0,
-      abortSignal: AbortSignal.timeout(20000),
+      abortSignal: AbortSignal.timeout(2000),
     });
   } catch (error) {
     // Never send raw provider errors, headers, or credentials to the browser.

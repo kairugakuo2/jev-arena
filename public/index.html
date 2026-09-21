@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Learn how Jev makes decisions, one gladiator turn at a time."
+      content="Learn how Jev makes decisions, through live movement and combat."
     />
     <title>Jev Arena · AI Gladiator</title>
     <link rel="stylesheet" href="/styles.css" />
@@ -33,7 +33,7 @@
               Move. Jump. Strike. Step into the arena and see how Jev chooses.
             </p>
           </div>
-          <span class="version">VERSION 2.0 <span>/</span> AI GLADIATOR</span>
+          <span class="version">VERSION 3.0 <span>/</span> AI GLADIATOR</span>
         </section>
         <div class="toolbar">
           <div class="modes" role="group" aria-label="Opponent mode">
@@ -44,14 +44,15 @@
             </button>
           </div>
           <span id="connection" class="connection">Checking Gateway…</span>
-          <button id="reset" class="quiet-button">↻ New battle</button>
+          <button id="play" class="quiet-button">▶ Play</button
+          ><button id="reset" class="quiet-button">↻ New battle</button>
         </div>
         <div class="workspace">
           <section class="arena-panel panel" aria-label="Battle arena">
             <div class="panel-heading">
               <span class="eyebrow">THE ARENA</span
               ><span class="round"
-                >ROUND <b id="round">01</b><span> / 50</span></span
+                >TIME <b id="round">0.0s</b><span> / 180s</span></span
               >
             </div>
             <div class="fighters">
@@ -102,7 +103,7 @@
                   value="100"
                 ></progress>
                 <div class="fighter-foot">
-                  <span id="ai-position">1 potion</span
+                  <span id="ai-position">x 8.0 · Grounded</span
                   ><span id="ai-guard">Unguarded</span>
                 </div>
               </article>
@@ -127,33 +128,33 @@
                 <div class="sword"></div>
                 <span>GLADIATOR 02</span>
               </div>
-              <span class="stage-center">+</span><div class="lane-labels" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span></div>
+              <span class="stage-center">+</span>
             </div>
             <div class="distance-indicator">
               <span>DISTANCE</span>
-              <div id="distance-pips" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
               <strong id="distance">2 · Medium range</strong>
             </div>
             <div class="turn-banner" role="status" id="turn-status">
-              Your turn. Choose your next move.
+              Paused. Press Play to start.
             </div>
             <div class="controls">
               <div class="controls-label">
                 <span class="eyebrow">YOUR MOVE</span
-                ><span>Move + attack or defend</span>
+                ><span>Live keyboard controls</span>
               </div>
               <div
                 class="movements"
                 id="movements"
                 role="group"
-                aria-label="Choose movement"
+                aria-label="Hold to move"
               ></div>
               <p id="move-preview" class="hint">
-                Choose movement, then attack or defend.
+                A/D move · Space jumps · J attacks · K defends.
               </p>
               <div class="actions" id="actions"></div>
               <p class="hint" id="move-hint">
-                Close the gap to attack. Defend to recover stamina.
+                Hold the controls to move and fight. No turns.
               </p>
             </div>
           </section>
@@ -178,7 +179,7 @@
               ><small id="decision-timing">State → evaluation → action</small>
             </div>
             <div id="request-error" class="error" role="alert" hidden></div>
-            <button id="retry" class="retry" hidden>Retry AI turn ↻</button>
+            <button id="retry" class="retry" hidden>Retry current state ↻</button>
             <p class="inspector-foot" id="probability-explainer">
               Action probabilities, not a chain of thought or your chance of
               winning.
@@ -188,7 +189,7 @@
               <p id="debug-caption">
                 The latest state submitted to the decision engine.
               </p>
-              <pre id="debug-state">No AI turn yet.</pre>
+              <pre id="debug-state">No AI decision yet.</pre>
             </details>
             <details class="debug">
               <summary>Inspect Jev question <span>↗</span></summary>
@@ -216,32 +217,35 @@ Available after a successful Jev request.</pre
           </summary>
           <div class="guide-content">
             <p>
-              <strong>One turn, two choices</strong>Select Stay, Left, Right or
-              Jump. Then click Attack or Defend to commit. The AI gets the same
-              choices.
+              <strong>Move whenever</strong>Hold A/D or left/right arrows to
+              run; Space, W or up arrow jumps. You can run while airborne and
+              pass through the opponent.
             </p>
             <p>
-              <strong>Movement</strong>Left/right costs 5 stamina and moves one
-              of seven lanes. Stay is free. Fighters cannot share a lane.
+              <strong>Attack</strong>Hold J to swing every 0.65 seconds. Each
+              swing costs 18 stamina. Reach is 1.25 horizontal and 0.8 vertical
+              units; jumping can evade a swing.
             </p>
             <p>
-              <strong>Jump</strong>Costs 15 stamina. Dodge ground strikes until
-              your next turn. Land for one turn before jumping again.
+              <strong>Guard</strong>Hold K or Shift. Guard halves movement
+              speed, drains 8 stamina/second, reduces damage to 4 and counters
+              for 6 if you have 8 stamina.
             </p>
             <p>
-              <strong>Attack</strong>Costs 20 stamina after movement. Reach: one
-              horizontal lane. Ground damage: 24. Jump damage: 16, and can hit
-              downward. Out-of-range swings miss but still cost stamina.
+              <strong>Recover</strong>Release guard to recover 12
+              stamina/second. Jumping costs 12 stamina. Release and press jump
+              again after landing.
             </p>
             <p>
-              <strong>Defend &amp; counter</strong>Restore 25 stamina and reduce
-              incoming damage to 6. Counter ground attacks for 12 damage if you
-              have 10 stamina to spend. Jump attacks avoid counters.
+              <strong>Jev's clock</strong>About two snapshots per second, one
+              request at a time. AI controls expire after 0.7 seconds. Responses
+              older than 1.2 seconds are ignored; physics always uses current
+              positions.
             </p>
             <p>
-              <strong>Keep it simple</strong>No potions or random damage.
-              Health/stamina cap at 100. Zero health ends the battle; 50 rounds
-              is a draw. Mode switching preserves the battle.
+              <strong>Pause &amp; touch</strong>Press Play to start, P or Esc to
+              pause. Switching away pauses automatically. Hold the on-screen
+              buttons on touch devices. No requests are made while paused.
             </p>
           </div>
         </details>

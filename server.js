@@ -27,40 +27,48 @@ function json(response, status, data) {
 // Build a known, bounded object. Never forward arbitrary user text to the model.
 export function validateState(input) {
   const state = {};
-  for (const name of ["ai", "player"]) {
-    const fighter = input?.[name];
-    if (
-      !fighter ||
-      !Number.isInteger(fighter.health) ||
-      fighter.health < 1 ||
-      fighter.health > 100 ||
-      !Number.isInteger(fighter.stamina) ||
-      fighter.stamina < 0 ||
-      fighter.stamina > 100 ||
-      !Number.isInteger(fighter.x) ||
-      fighter.x < 0 ||
-      fighter.x > 6 ||
-      ![0, 1].includes(fighter.y) ||
-      typeof fighter.defending !== "boolean"
-    ) {
+  const fields = {
+    health: [0.0001, 100],
+    stamina: [0, 100],
+    x: [0.35, 9.65],
+    y: [0, 2.5],
+    vx: [-3.4, 3.4],
+    vy: [-12, 8],
+    cooldown: [0, 0.65],
+  };
+  for (const actor of ["ai", "player"]) {
+    const f = input?.[actor];
+    if (!f || typeof f.defending !== "boolean")
       throw new Error("Invalid fighter state.");
+    state[actor] = {};
+    for (const [key, [min, max]] of Object.entries(fields)) {
+      if (
+        typeof f[key] !== "number" ||
+        !Number.isFinite(f[key]) ||
+        f[key] < min ||
+        f[key] > max
+      )
+        throw new Error("Invalid fighter state.");
+      state[actor][key] = f[key];
     }
-    state[name] = {
-      health: fighter.health,
-      stamina: fighter.stamina,
-      x: fighter.x,
-      y: fighter.y,
-      defending: fighter.defending,
-    };
+    state[actor].defending = f.defending;
   }
-  if (state.ai.x === state.player.x) throw new Error("Overlapping fighters.");
   const distance = distanceBetween(state.ai, state.player);
   if (
     typeof input.distance !== "number" ||
+    !Number.isFinite(input.distance) ||
     Math.abs(input.distance - distance) > 0.00001
   )
     throw new Error("Invalid distance.");
   state.distance = distance;
+  if (
+    typeof input.elapsed !== "number" ||
+    !Number.isFinite(input.elapsed) ||
+    input.elapsed < 0 ||
+    input.elapsed > 181
+  )
+    throw new Error("Invalid time.");
+  state.elapsed = input.elapsed;
   for (const key of ["previous_player_action", "previous_ai_action"]) {
     if (input[key] !== null && !ACTIONS.includes(input[key]))
       throw new Error("Invalid previous action.");

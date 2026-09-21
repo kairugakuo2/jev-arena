@@ -1,350 +1,399 @@
 import {
   ACTIONS,
-  MOVES,
-  previewPosition,
-  attackConnects,
+  RULES,
   newGame,
-  actionProblem,
+  neutralInput,
+  actionInput,
   decisionState,
-  executeAction,
+  stepGame,
+  distanceBetween,
+  attackConnects,
 } from "./game.js";
 import { chooseRuleAction } from "./rule-ai.js";
-
 const $ = (id) => document.getElementById(id);
-let game = newGame();
-let mode = "jev";
-let selectedMove = "STAY";
-let busy = false;
-let decision = null;
-let pendingState = null;
-let actionCount = 0;
-let requestController = null;
-let generation = 0; // A reset invalidates any older in-flight response.
-const labels = { ATTACK: ["⚔", "20 stamina"], DEFEND: ["◇", "+25 stamina"] };
-for (const move of MOVES) {
+let game = newGame(),
+  mode = "jev",
+  running = false,
+  epoch = 0,
+  decision = null;
+let held = new Set(),
+  aiInput = neutralInput(),
+  aiExpires = 0,
+  nextDecision = 0,
+  inFlight = null,
+  failures = 0;
+let count = 0,
+  lastFrame = performance.now(),
+  accumulator = 0,
+  lastUi = 0;
+// No game state is ever replaced by an API response: only a short-lived control intent.
+const STEP = 1 / 60,
+  REQUEST_INTERVAL = 500,
+  MAX_RESPONSE_AGE = 1200,
+  INTENT_LIFETIME = 700;
+const keyMap = {
+  ArrowLeft: "left",
+  KeyA: "left",
+  ArrowRight: "right",
+  KeyD: "right",
+  ArrowUp: "jump",
+  KeyW: "jump",
+  Space: "jump",
+  KeyJ: "attack",
+  KeyK: "defend",
+  ShiftLeft: "defend",
+  ShiftRight: "defend",
+};
+const bindings = new Map();
+function currentInput() {
+  const has = (name) => [...held].some((key) => bindings.get(key) === name);
+  return {
+    move: Number(has("right")) - Number(has("left")),
+    jump: has("jump"),
+    attack: has("attack"),
+    defend: has("defend"),
+  };
+}
+function log(actor, text) {
+  $("battle-log").querySelector(".log-empty")?.remove();
+  const row = document.createElement("li"),
+    time = document.createElement("span"),
+    who = document.createElement("span"),
+    body = document.createElement("span");
+  time.className = "log-round";
+  time.textContent = game.elapsed.toFixed(1) + "s";
+  who.className = "log-actor " + (actor === "ai" ? "enemy" : "");
+  who.textContent =
+    actor === "player" ? "YOU" : mode === "jev" ? "JEV" : "RULE BOT";
+  body.className = "log-text";
+  body.textContent = text;
+  row.append(time, who, body);
+  $("battle-log").append(row);
+  while ($("battle-log").children.length > 80)
+    $("battle-log").firstChild.remove();
+  $("battle-log").scrollTop = $("battle-log").scrollHeight;
+  $("log-count").textContent = `${++count} EVENTS`;
+}
+function cancelDecision() {
+  epoch++;
+  inFlight?.abort();
+  inFlight = null;
+  aiInput = neutralInput();
+  aiExpires = 0;
+}
+function pause() {
+  running = false;
+  held.clear();
+  cancelDecision();
+  game.player.defending = false;
+  game.ai.defending = false;
+  render();
+}
+function start() {
+  if (game.winner) return;
+  running = true;
+  accumulator = 0;
+  lastFrame = performance.now();
+  nextDecision = lastFrame;
+  render();
+}
+document.addEventListener("keydown", (event) => {
+  if (event.target.closest("input,textarea,select,[contenteditable=true]"))
+    return;
+  if (event.code === "Escape") {
+    event.preventDefault();
+    pause();
+    return;
+  }
+  if (event.code === "KeyP" && !event.repeat) {
+    running ? pause() : start();
+    return;
+  }
+  if (!keyMap[event.code]) return;
+  // Preserve normal Space activation when a UI button has keyboard focus.
+  if (event.code === "Space" && event.target.closest("button,summary,a"))
+    return;
+  event.preventDefault();
+  if (running) {
+    bindings.set(event.code, keyMap[event.code]);
+    held.add(event.code);
+  }
+});
+document.addEventListener("keyup", (event) => held.delete(event.code));
+window.addEventListener("blur", pause);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) pause();
+});
+for (const [control, label, container] of [
+  ["left", "← Left · A", "movements"],
+  ["right", "Right · D →", "movements"],
+  ["jump", "↑ Jump · Space", "movements"],
+  ["attack", "⚔ Attack · J", "actions"],
+  ["defend", "◇ Defend · K", "actions"],
+]) {
   const button = document.createElement("button");
-  button.textContent = {
-    STAY: "• Stay",
-    LEFT: "← Left",
-    RIGHT: "Right →",
-    JUMP: "↑ Jump",
-  }[move];
-  button.dataset.move = move;
+  button.textContent = label;
+  button.dataset.control = control;
   button.className = "movement-button";
-  button.addEventListener("click", () => {
-    selectedMove = move;
-    render();
+  const token = "pointer-" + control;
+  bindings.set(token, control);
+  button.addEventListener("pointerdown", (e) => {
+    if (!running) return;
+    e.preventDefault();
+    button.setPointerCapture(e.pointerId);
+    held.add(token);
   });
-  $("movements").append(button);
+  for (const name of ["pointerup", "pointercancel", "lostpointercapture"])
+    button.addEventListener(name, () => held.delete(token));
+  // Keyboard access for the on-screen buttons: Enter/Space holds their control.
+  button.addEventListener("keydown", (e) => {
+    if ((e.code === "Enter" || e.code === "Space") && running) {
+      e.preventDefault();
+      held.add(token);
+    }
+  });
+  button.addEventListener("keyup", () => held.delete(token));
+  button.addEventListener("blur", () => held.delete(token));
+  $(container).append(button);
 }
-for (const combat of ["ATTACK", "DEFEND"]) {
-  const button = document.createElement("button");
-  button.className = "action-button";
-  button.dataset.action = combat;
-  button.innerHTML = `<span class="action-icon" aria-hidden="true">${labels[combat][0]}</span><span class="action-name">${combat}</span><span class="action-cost">${labels[combat][1]}</span>`;
-  button.addEventListener("click", () =>
-    playerTurn(`${selectedMove}_${combat}`),
-  );
-  $("actions").append(button);
+function renderActors() {
+  for (const actor of ["player", "ai"]) {
+    const f = game[actor],
+      avatar = document.querySelector(".avatar-" + actor);
+    avatar.style.left = `${8 + (f.x / RULES.width) * 84}%`;
+    avatar.style.bottom = `${45 + f.y * 62}px`;
+    avatar.classList.toggle("guarding", f.defending);
+    avatar.classList.toggle(
+      "striking",
+      f.cooldown > RULES.attackCooldown - 0.15,
+    );
+  }
 }
-
 function render() {
   for (const actor of ["player", "ai"]) {
+    const f = game[actor];
     for (const stat of ["health", "stamina"]) {
-      $(`${actor}-${stat}`).value = game[actor][stat];
-      $(`${actor}-${stat}-text`).textContent = `${game[actor][stat]} / 100`;
+      $(actor + "-" + stat).value = f[stat];
+      $(actor + "-" + stat + "-text").textContent =
+        `${Math.round(f[stat])} / 100`;
     }
-    $(`${actor}-position`).textContent =
-      `Lane ${game[actor].x + 1} · ${game[actor].y ? "Airborne" : "Grounded"}`;
-    const avatar = document.querySelector(`.avatar-${actor}`);
-    avatar.dataset.x = game[actor].x;
-    avatar.dataset.y = game[actor].y;
-    avatar.classList.toggle("guarding", game[actor].defending);
-    $(`${actor}-guard`).textContent = game[actor].defending
+    $(actor + "-position").textContent =
+      `x ${f.x.toFixed(1)} · ${f.y > 0.05 ? "Airborne" : "Grounded"}`;
+    $(actor + "-guard").textContent = f.defending
       ? "◇ Guard active"
-      : "Unguarded";
+      : `Attack ${f.cooldown > 0 ? f.cooldown.toFixed(1) + "s" : "ready"}`;
   }
-  $("round").textContent = String(game.round).padStart(2, "0");
+  $("round").textContent = game.elapsed.toFixed(1) + "s";
   $("distance").textContent =
-    `${game.distance.toFixed(1)} units · ${Math.abs(game.player.x - game.ai.x) <= 1 ? "Melee range" : "Out of reach"}`;
-  $("stage").dataset.distance = "free";
-  [...$("distance-pips").children].forEach((pip, index) =>
-    pip.classList.toggle("active", index < Math.abs(game.player.x - game.ai.x)),
-  );
+    `${distanceBetween(game.ai, game.player).toFixed(1)} units · ${attackConnects(game.player, game.ai) ? "In reach" : "Out of reach"}`;
+  $("stage").dataset.distance = "realtime";
   $("opponent-name").textContent = mode === "jev" ? "Jev" : "Rule Bot";
   $("opponent-type").textContent = mode === "jev" ? "AI MODEL" : "RULE ENGINE";
   $("jev-mode").setAttribute("aria-pressed", String(mode === "jev"));
   $("rule-mode").setAttribute("aria-pressed", String(mode === "rules"));
-  $("jev-mode").disabled = busy;
-  $("rule-mode").disabled = busy;
-  for (const button of $("actions").children) {
-    const problem = actionProblem(
-      game,
-      "player",
-      `${selectedMove}_${button.dataset.action}`,
-    );
-    button.disabled = Boolean(problem || busy || game.turn !== "player");
-    button.title = problem || labels[button.dataset.action][1];
-  }
-  for (const button of $("movements").children) {
-    const move = button.dataset.move;
-    const problem = actionProblem(game, "player", `${move}_DEFEND`);
-    button.disabled = Boolean(problem || busy || game.turn !== "player");
-    button.title =
-      problem ||
-      (move === "JUMP"
-        ? "15 stamina · dodge ground attacks"
-        : move === "STAY"
-          ? "No movement cost"
-          : "5 stamina · one lane");
-    button.setAttribute("aria-pressed", String(move === selectedMove));
-  }
-  $("move-preview").textContent =
-    `Selected: ${selectedMove.toLowerCase()} → choose attack or defend to commit.`;
-  $("retry").hidden = game.turn !== "ai" || busy || Boolean(game.winner);
-  $("retry").textContent =
-    mode === "jev" ? "Retry Jev turn ↻" : "Continue with rule-based AI →";
+  $("play").textContent = running ? "Ⅱ Pause" : "▶ Play";
+  $("play").disabled = Boolean(game.winner);
+  for (const button of document.querySelectorAll("[data-control]"))
+    button.disabled = !running || Boolean(game.winner);
   $("turn-status").textContent = game.winner
     ? game.winner === "draw"
-      ? "50 rounds. A draw — start a new battle to compare again."
+      ? "Draw. Start a new battle."
       : game.winner === "player"
-        ? "Victory. You won the battle!"
-        : "The gladiator wins. Ready for a rematch?"
-    : busy
-      ? mode === "jev"
-        ? "Jev is evaluating the battle state…"
-        : "The rule engine is choosing…"
-      : game.turn === "ai"
-        ? "AI turn paused. Retry, switch modes, or start a new battle."
-        : "Your turn. Choose your next move.";
-  $("move-hint").textContent = game.winner
-    ? "Start a new battle to try another strategy."
-    : attackConnects(previewPosition(game, "player", selectedMove), game.ai)
-      ? "Attack will connect. Jump strikes dodge counters; defense punishes ground attacks."
-      : "Attack would miss from this position. Reposition and defend to recover.";
+        ? "Victory! You won."
+        : "The gladiator wins. Try again."
+    : !running
+      ? "Paused · Press Play. A/D move · Space jump · J attack · K defend"
+      : inFlight
+        ? "Live combat · Jev is evaluating; keep moving."
+        : "Live combat · Move and fight whenever you want.";
+  $("move-preview").textContent =
+    "Hold A/D or ←/→ to run. Space jumps. Hold J to attack; K or Shift guards.";
+  $("move-hint").textContent =
+    "No turns. Attacks have a 0.65s cooldown. Release guard to regenerate stamina. P / Esc pauses.";
+  $("retry").hidden = !failures || !running;
+  renderActors();
 }
-
 function renderDecision() {
   $("probabilities").replaceChildren();
-  const ordered = [...ACTIONS].sort(
+  for (const action of [...ACTIONS].sort(
     (a, b) =>
       (decision?.probabilities?.[b] ?? 0) - (decision?.probabilities?.[a] ?? 0),
-  );
-  for (const action of ordered) {
-    const p = decision?.probabilities?.[action];
-    const row = document.createElement("div");
-    row.className = `prob-row${decision?.action === action ? " selected" : ""}`;
-    const label = document.createElement("div");
+  )) {
+    const p = decision?.probabilities?.[action],
+      row = document.createElement("div"),
+      label = document.createElement("div"),
+      name = document.createElement("span"),
+      value = document.createElement("span"),
+      bar = document.createElement("progress");
+    row.className =
+      "prob-row" + (decision?.action === action ? " selected" : "");
     label.className = "prob-label";
-    const name = document.createElement("span");
-    name.textContent = action.replace("_", " + ");
-    const value = document.createElement("span");
-    value.textContent = p == null ? "—" : `${(p * 100).toFixed(1)}%`;
-    label.append(name, value);
-    const bar = document.createElement("progress");
+    name.textContent = action.replaceAll("_", " + ");
+    value.textContent = p == null ? "—" : (p * 100).toFixed(1) + "%";
     bar.max = 1;
     bar.value = p ?? 0;
-    bar.setAttribute(
-      "aria-label",
-      `${action}: ${p == null ? "not available" : value.textContent}`,
-    );
+    bar.setAttribute("aria-label", name.textContent + " " + value.textContent);
+    label.append(name, value);
     row.append(label, bar);
     $("probabilities").append(row);
   }
-  const source = decision?.source ?? mode;
   $("decision-title").textContent =
-    source === "jev" ? "Inside the decision" : "Rules, in plain sight";
+    mode === "jev" ? "Live decision stream" : "Live rule engine";
   $("decision-note").textContent =
-    source === "jev"
-      ? "Jev evaluates the state and assigns a probability to each action. Inspect its latest decision below."
-      : "A fixed priority list chooses one action. The same state always produces the same choice.";
+    "The arena runs continuously. Each decision controls the AI briefly; the next snapshot reflects your latest position.";
   $("decision-source").textContent =
-    source === "jev" ? "typesafe-ai/jev" : "if / else · deterministic";
+    mode === "jev" ? "typesafe-ai/jev" : "if / else · deterministic";
   $("decision-round").textContent = decision
-    ? `ROUND ${decision.round} · ${source === "jev" ? "JEV" : "RULES"}`
-    : "AWAITING TURN";
+    ? `SNAPSHOT ${decision.time.toFixed(1)}s`
+    : "AWAITING PLAY";
   $("chosen-action").textContent =
-    decision?.action.replace("_", " + ") ?? "Waiting for your move";
+    decision?.action.replaceAll("_", " + ") ?? "Waiting for Play";
   $("decision-timing").textContent = decision
-    ? `${Math.round(decision.elapsed)} ms · ${source === "jev" ? "Jev choice" : "Rule match"}`
-    : "State → evaluation → action";
+    ? `${Math.round(decision.latency)} ms · ${decision.applied ? "intent applied" : "stale — ignored"}`
+    : "At most 2 requests/sec · one in flight";
   $("probability-explainer").textContent =
     decision?.rule ??
-    (decision && !decision.probabilities
-      ? "This response omitted probabilities. No distribution has been invented."
-      : source === "rules"
-        ? "100% marks a rule outcome, not model confidence."
-        : "Native choice probabilities, not a chain of thought or your chance of winning. Rounded values may not sum to exactly 100%.");
+    (mode === "rules"
+      ? "100% means a rule match, not model confidence."
+      : "Native choice probabilities, not reasoning or victory odds. Missing distributions are shown as —.");
 }
-
-function logAction(actor, message, round, source) {
-  $("battle-log").querySelector(".log-empty")?.remove();
-  const item = document.createElement("li");
-  const badge = document.createElement("span");
-  badge.className = "log-round";
-  badge.textContent = `ROUND ${String(round).padStart(2, "0")}`;
-  const who = document.createElement("span");
-  who.className = `log-actor ${actor === "ai" ? "enemy" : ""}`;
-  who.textContent =
-    actor === "player" ? "YOU" : source === "jev" ? "JEV" : "RULE BOT";
-  const text = document.createElement("span");
-  text.className = "log-text";
-  text.textContent = message;
-  item.append(badge, who, text);
-  $("battle-log").append(item);
-  $("battle-log").scrollTop = $("battle-log").scrollHeight;
-  $("log-count").textContent = `${++actionCount} ACTIONS`;
-}
-
-function execute(actor, action, source) {
-  const round = game.round;
-  const result = executeAction(game, actor, action);
-  game = result.state;
-  logAction(actor, result.message, round, source);
-  const avatar = document.querySelector(`.avatar-${actor}`);
-  avatar.classList.remove("flash");
-  // One frame lets repeated moves restart the small feedback animation.
-  requestAnimationFrame(() => avatar.classList.add("flash"));
-}
-
-async function playerTurn(action) {
-  if (busy || game.turn !== "player" || actionProblem(game, "player", action))
-    return;
-  execute("player", action);
-  render();
-  if (!game.winner) {
-    pendingState = decisionState(game);
-    await aiTurn();
-  }
-}
-
-async function aiTurn() {
-  if (busy || game.winner || game.turn !== "ai" || !pendingState) return;
-  const thisGeneration = generation;
-  busy = true;
-  decision = null;
-  $("request-error").hidden = true;
-  $("debug-state").textContent = JSON.stringify(pendingState, null, 2);
+async function decide(now) {
+  if (!running || game.winner || inFlight || now < nextDecision) return;
+  const snapshot = decisionState(game),
+    version = epoch,
+    started = performance.now(),
+    controller = new AbortController();
+  inFlight = controller;
+  nextDecision = now + (mode === "rules" ? 200 : REQUEST_INTERVAL);
+  const timeout = setTimeout(() => controller.abort(), 2500);
+  $("debug-state").textContent = JSON.stringify(snapshot, null, 2);
   $("debug-caption").textContent =
-    mode === "jev"
-      ? "Exact state submitted to Jev (after your action)."
-      : "Exact state passed to the rule engine. No network call.";
-  $("debug-question").textContent =
-    mode === "jev"
-      ? "Request in progress…"
-      : "No Jev request in rule-based mode. Read public/rule-ai.js.";
-  renderDecision();
-  render();
-  const started = performance.now();
-  const controller = new AbortController();
-  requestController = controller;
-  const timeout = setTimeout(() => controller.abort(), 25000);
+    "Exact snapshot at request start. The arena continues moving while this is evaluated.";
   try {
     let result;
-    if (mode === "rules") result = chooseRuleAction(pendingState);
+    if (mode === "rules") result = chooseRuleAction(snapshot);
     else {
       const response = await fetch("/api/decide", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pendingState),
+        body: JSON.stringify(snapshot),
         signal: controller.signal,
       });
       result = await response.json();
-      if (!response.ok)
-        throw new Error(result.error || "Jev request failed. Retry this turn.");
+      if (!response.ok) throw new Error(result.error || "Jev is unavailable.");
     }
-    if (generation !== thisGeneration) return;
-    if (actionProblem(game, "ai", result.action))
-      throw new Error(
-        "The decision is not legal in this state. Retry the turn.",
-      );
-    decision = {
-      ...result,
-      elapsed: performance.now() - started,
-      round: game.round,
-    };
-    if (result.request) {
-      $("debug-state").textContent = JSON.stringify(
-        result.request.state,
-        null,
-        2,
-      );
-      $("debug-question").textContent = JSON.stringify(
-        result.request.questions,
-        null,
-        2,
-      );
+    if (epoch !== version || !running || game.winner) return;
+    const latency = performance.now() - started,
+      applied = latency <= MAX_RESPONSE_AGE;
+    if (!ACTIONS.includes(result.action))
+      throw new Error("Unknown AI control; response ignored.");
+    decision = { ...result, time: snapshot.elapsed, latency, applied };
+    if (applied) {
+      aiInput = actionInput(result.action);
+      aiExpires = performance.now() + INTENT_LIFETIME;
+    } else {
+      aiInput = neutralInput();
+      aiExpires = 0;
     }
-    execute("ai", decision.action, decision.source);
-    pendingState = null;
-    selectedMove = "STAY";
+    $("debug-question").textContent = result.request
+      ? JSON.stringify(result.request.questions, null, 2)
+      : "Rule-based control: no Jev request.";
+    failures = 0;
+    $("request-error").hidden = true;
     renderDecision();
   } catch (error) {
-    if (generation !== thisGeneration) return;
+    if (epoch !== version || !running) return;
+    aiInput = neutralInput();
+    aiExpires = 0;
+    failures++;
+    nextDecision =
+      performance.now() + Math.min(10000, 1000 * 2 ** Math.min(failures, 3));
     $("request-error").textContent =
-      error.name === "AbortError"
-        ? "The request timed out. Retry the AI turn or switch to Rule-Based AI."
-        : error.message;
+      (error.name === "AbortError" ? "Jev timed out." : error.message) +
+      " Movement stays live. Retrying with a fresh snapshot; you can switch to Rule-Based AI.";
     $("request-error").hidden = false;
-    $("debug-question").textContent =
-      "No successful Jev response. The question is defined in jev-ai.js → buildJevRequest().";
-    $("chosen-action").textContent = "No action executed";
   } finally {
     clearTimeout(timeout);
-    if (generation === thisGeneration) {
-      busy = false;
-      requestController = null;
-      render();
-    }
+    if (inFlight === controller) inFlight = null;
   }
 }
-
-function setMode(nextMode) {
-  if (busy) return;
-  mode = nextMode;
-  // Clear old inspection so a rule result cannot be mistaken for a Jev result.
+function frame(now) {
+  const delta = Math.min((now - lastFrame) / 1000, 0.1);
+  lastFrame = now;
+  if (running && !game.winner) {
+    accumulator += delta;
+    while (accumulator >= STEP && !game.winner) {
+      const enemy = now < aiExpires ? aiInput : neutralInput();
+      for (const event of stepGame(
+        game,
+        { player: currentInput(), ai: enemy },
+        STEP,
+      ))
+        log(event.actor, event.text);
+      accumulator -= STEP;
+    }
+    renderActors();
+    if (game.winner) {
+      running = false;
+      held.clear();
+      cancelDecision();
+      render();
+    } else void decide(now);
+  }
+  if (now - lastUi > 100) {
+    render();
+    lastUi = now;
+  }
+  requestAnimationFrame(frame);
+}
+function setMode(next) {
+  cancelDecision();
+  mode = next;
   decision = null;
+  failures = 0;
+  nextDecision = performance.now();
   $("request-error").hidden = true;
-  $("debug-state").textContent = "No decision in this mode yet.";
-  $("debug-question").textContent = "No decision in this mode yet.";
+  $("debug-state").textContent = "Awaiting a fresh snapshot.";
+  $("debug-question").textContent = "No request in this mode yet.";
   renderDecision();
   render();
 }
-
+$("play").addEventListener("click", () => {
+  running ? pause() : start();
+  $("play").blur();
+});
 $("jev-mode").addEventListener("click", () => setMode("jev"));
 $("rule-mode").addEventListener("click", () => setMode("rules"));
-$("retry").addEventListener("click", aiTurn);
+$("retry").textContent = "Retry with current state";
+$("retry").addEventListener("click", () => {
+  nextDecision = 0;
+  failures = 0;
+});
 $("reset").addEventListener("click", () => {
-  generation += 1;
-  requestController?.abort();
-  requestController = null;
+  pause();
   game = newGame();
-  selectedMove = "STAY";
-  busy = false;
   decision = null;
-  pendingState = null;
-  actionCount = 0;
+  failures = 0;
+  count = 0;
+  accumulator = 0;
   $("battle-log").innerHTML =
-    '<li class="log-empty">The arena is ready. Your first move starts the battle.</li>';
-  $("log-count").textContent = "0 ACTIONS";
+    '<li class="log-empty">Press Play to enter the arena.</li>';
+  $("log-count").textContent = "0 EVENTS";
   $("request-error").hidden = true;
-  $("debug-state").textContent = "No AI turn yet.";
-  $("debug-question").textContent = "Available after a successful Jev request.";
+  $("debug-state").textContent = "No decision yet.";
+  $("debug-question").textContent = "No request yet.";
   renderDecision();
   render();
 });
-
-async function checkConnection() {
-  try {
-    const response = await fetch("/api/status");
-    const status = await response.json();
-    $("connection").textContent = status.configured
-      ? "● Gateway key configured"
-      : "○ Jev needs a key · Rule-Based AI is ready";
-  } catch {
-    $("connection").textContent = "Server unreachable · start with npm start";
-  }
-}
-render();
+fetch("/api/status")
+  .then((r) => r.json())
+  .then(
+    (s) =>
+      ($("connection").textContent = s.configured
+        ? "● Gateway key configured"
+        : "○ Jev needs a key · Rules work offline"),
+  )
+  .catch(() => ($("connection").textContent = "Server unreachable"));
 renderDecision();
-checkConnection();
+render();
+requestAnimationFrame(frame);

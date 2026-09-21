@@ -1085,5 +1085,65 @@ footer {
     transform-origin: bottom center;
   }
 }
-.lane-labels { position:absolute; bottom:8px; left:8%; right:8%; display:grid; grid-template-columns:repeat(7,1fr); text-align:center; color:var(--muted); font:10px var(--mono); }
-.fighter-foot { gap:8px; }
+.lane-labels {
+  position: absolute;
+  bottom: 8px;
+  left: 8%;
+  right: 8%;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  color: var(--muted);
+  font: 10px var(--mono);
+}
+.fighter-foot {
+  gap: 8px;
+}
+.stage[data-distance="realtime"] {
+  height: 330px;
+  background: linear-gradient(
+    transparent 85%,
+    #4a5f35 85%,
+    #273221 87%,
+    #1a2016 88%
+  );
+}
+.stage[data-distance="realtime"] .avatar {
+  right: auto;
+  margin-left: -37px;
+  transition: none;
+}
+.stage[data-distance="realtime"] .avatar.guarding .shield {
+  filter: brightness(1.7);
+  transform: scale(1.2);
+}
+.stage[data-distance="realtime"] .avatar.striking .sword {
+  transform: rotate(75deg);
+}
+.stage[data-distance="realtime"] .orbit {
+  display: none;
+}
+#movements {
+  grid-template-columns: repeat(3, 1fr);
+}
+[data-control] {
+  touch-action: none;
+  user-select: none;
+  min-height: 48px;
+}
+#probabilities {
+  max-height: 330px;
+  overflow: auto;
+}
+#play {
+  background: var(--lime);
+  color: #142010;
+  border-color: var(--lime);
+  min-width: 85px;
+}
+@media (max-width: 760px) {
+  .stage[data-distance="realtime"] .avatar {
+    scale: 0.65;
+    transform-origin: bottom center;
+  }
+}

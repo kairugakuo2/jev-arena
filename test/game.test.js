@@ -1,193 +1,171 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  newGame,
-  executeAction,
-  decisionState,
-  legalActions,
   ACTIONS,
-  distanceBetween,
+  newGame,
+  neutralInput,
+  stepGame,
+  decisionState,
+  actionInput,
+  legalActions,
 } from "../public/game.js";
 import { chooseRuleAction } from "../public/rule-ai.js";
-import { buildJevRequest, validateDecision } from "../jev-ai.js";
 import { validateState } from "../server.js";
+import { validateDecision, buildJevRequest } from "../jev-ai.js";
 import { experimental_evaluate as evaluate } from "ai";
 import { Experimental_EvaluationMockModelV4 } from "ai/test";
-
-function closeGame() {
+const tick = (s, p = {}, a = {}) =>
+  stepGame(
+    s,
+    { player: { ...neutralInput(), ...p }, ai: { ...neutralInput(), ...a } },
+    1 / 60,
+  );
+function near() {
   const s = newGame();
-  s.player.x = 2;
-  s.ai.x = 3;
-  s.distance = 1;
+  s.player.x = 4;
+  s.ai.x = 5;
   return s;
 }
-test("movement and combat are one turn, resources and source stay intact", () => {
-  const s = newGame(),
-    n = executeAction(s, "player", "RIGHT_DEFEND").state;
-  assert.equal(n.player.x, 2);
-  assert.equal(n.player.defending, true);
-  assert.equal(n.player.stamina, 100);
-  assert.equal(n.turn, "ai");
-  assert.equal(s.player.x, 1);
-});
-test("walls, occupied lanes, jump cooldown and total costs are enforced", () => {
-  const s = closeGame();
-  assert.ok(!legalActions(s, "player").includes("RIGHT_ATTACK"));
-  s.player.x = 0;
-  assert.ok(!legalActions(s, "player").includes("LEFT_DEFEND"));
-  s.player.stamina = 34;
-  assert.ok(!legalActions(s, "player").includes("JUMP_ATTACK"));
-  s.player.stamina = 35;
-  assert.ok(legalActions(s, "player").includes("JUMP_ATTACK"));
-  s.player.y = 1;
-  assert.ok(!legalActions(s, "player").includes("JUMP_DEFEND"));
-});
-test("attack miss still costs stamina and never damages a far opponent", () => {
-  const n = executeAction(newGame(), "player", "STAY_ATTACK").state;
-  assert.equal(n.player.stamina, 80);
-  assert.equal(n.ai.health, 100);
-});
-test("movement is resolved before range check; ground damage is fixed", () => {
+test("both fighters run simultaneously without a turn or commitment", () => {
   const s = newGame();
-  s.player.x = 2;
-  s.ai.x = 4;
-  const n = executeAction(s, "player", "RIGHT_ATTACK").state;
-  assert.equal(n.ai.health, 76);
-  assert.equal(n.player.stamina, 75);
-  assert.equal(n.distance, 1);
+  for (let i = 0; i < 60; i++) tick(s, { move: 1 }, { move: -1 });
+  assert.ok(s.player.x > 5);
+  assert.ok(s.ai.x < 5);
+  assert.equal(s.elapsed.toFixed(1), "1.0");
+  assert.ok(!("turn" in s));
 });
-test("jump dodges ground attacks, lands next turn, and avoids repeated jumps", () => {
-  let s = closeGame();
-  s = executeAction(s, "player", "JUMP_DEFEND").state;
-  s = executeAction(s, "ai", "STAY_ATTACK").state;
-  assert.equal(s.player.health, 100);
-  assert.equal(s.player.y, 1);
-  assert.throws(() => executeAction(s, "player", "JUMP_ATTACK"), /Land/);
-  s = executeAction(s, "player", "STAY_DEFEND").state;
+test("continuous movement stops at arena boundaries", () => {
+  const s = newGame();
+  for (let i = 0; i < 600; i++) tick(s, { move: -1 }, { move: 1 });
+  assert.equal(s.player.x, 0.35);
+  assert.equal(s.ai.x, 9.65);
+});
+test("jump moves immediately, permits aerial steering and lands automatically", () => {
+  const s = newGame();
+  tick(s, { jump: true });
+  assert.ok(s.player.y > 0);
+  assert.ok(s.player.stamina < 90);
+  for (let i = 0; i < 20; i++) tick(s, { move: 1, jump: true });
+  assert.ok(s.player.y > 1);
+  assert.ok(s.player.x > 3);
+  for (let i = 0; i < 100; i++) tick(s, { jump: true });
+  assert.equal(s.player.y, 0, "holding jump must not autojump");
+  tick(s, {});
+  tick(s, { jump: true });
+  assert.ok(s.player.y > 0);
+});
+test("attacks use live horizontal and vertical positions; misses cost stamina", () => {
+  const far = newGame();
+  tick(far, { attack: true });
+  assert.equal(far.ai.health, 100);
+  assert.ok(far.player.stamina < 83);
+  const close = near();
+  tick(close, { attack: true });
+  assert.equal(close.ai.health, 84);
+  const airborne = near();
+  airborne.ai.y = 1.5;
+  tick(airborne, { attack: true });
+  assert.equal(airborne.ai.health, 100);
+});
+test("held attack obeys cooldown rather than firing every frame", () => {
+  const s = near();
+  tick(s, { attack: true });
+  for (let i = 0; i < 30; i++) tick(s, { attack: true });
+  assert.equal(s.ai.health, 84);
+  for (let i = 0; i < 11; i++) tick(s, { attack: true });
+  assert.equal(s.ai.health, 68);
+});
+test("guard reduces hit damage, counters and slows running", () => {
+  const s = near();
+  tick(s, { attack: true }, { defend: true });
+  assert.equal(s.ai.health, 96);
+  assert.equal(s.player.health, 94);
+  const moving = newGame();
+  tick(moving, { move: 1 }, { move: 1, defend: true });
+  assert.ok(Math.abs((moving.player.x - 2) / 2 - (moving.ai.x - 8)) < 1e-6);
+});
+test("guard depletes resources; release recovers; zero stamina cannot jump or attack", () => {
+  const s = newGame();
+  for (let i = 0; i < 60; i++) tick(s, { defend: true });
+  assert.ok(s.player.stamina < 93);
+  for (let i = 0; i < 60; i++) tick(s);
+  assert.equal(s.player.stamina, 100);
+  s.player.stamina = 0;
+  tick(s, { attack: true, jump: true });
   assert.equal(s.player.y, 0);
-  assert.ok(legalActions(s, "player").includes("JUMP_ATTACK"));
+  assert.equal(s.player.cooldown, 0);
 });
-test("jump attack hits downward or airborne for 16 damage", () => {
-  for (const height of [0, 1]) {
-    const s = closeGame();
-    s.ai.y = height;
-    const n = executeAction(s, "player", "JUMP_ATTACK").state;
-    assert.equal(n.ai.health, 84);
-    assert.equal(n.player.stamina, 65);
-  }
+test("simultaneous lethal attacks draw instead of awarding frame-order advantage", () => {
+  const s = near();
+  s.player.health = 16;
+  s.ai.health = 16;
+  tick(s, { attack: true }, { attack: true });
+  assert.equal(s.winner, "draw");
+  const before = structuredClone(s);
+  tick(s, { move: 1 });
+  assert.deepEqual(s, before);
 });
-test("defense counters ground attackers but not jump strikes", () => {
-  const s = closeGame();
-  s.ai.defending = true;
-  const ground = executeAction(s, "player", "STAY_ATTACK").state;
-  assert.equal(ground.ai.health, 94);
-  assert.equal(ground.player.health, 88);
-  assert.equal(ground.ai.stamina, 90);
-  const air = executeAction(s, "player", "JUMP_ATTACK").state;
-  assert.equal(air.ai.health, 94);
-  assert.equal(air.player.health, 100);
-  s.ai.stamina = 9;
-  assert.equal(
-    executeAction(s, "player", "STAY_ATTACK").state.player.health,
-    100,
-  );
+test("time limit draws and enormous frame gaps are capped", () => {
+  const s = newGame();
+  stepGame(s, { player: neutralInput(), ai: neutralInput() }, 1000);
+  assert.ok(s.elapsed <= 1 / 30);
+  s.elapsed = 180;
+  tick(s);
+  assert.equal(s.winner, "draw");
 });
-test("guard expires on the owners next action and counters can end a battle", () => {
-  const s = closeGame();
-  s.player.defending = true;
-  assert.equal(
-    executeAction(s, "player", "STAY_ATTACK").state.player.defending,
-    false,
-  );
-  s.ai.defending = true;
-  s.player.health = 8;
-  assert.equal(executeAction(s, "player", "STAY_ATTACK").state.winner, "ai");
-  s.ai.health = 6;
-  const n = executeAction(s, "player", "STAY_ATTACK").state;
-  assert.equal(n.winner, "player");
-  assert.equal(n.player.health, 8);
-  assert.deepEqual(legalActions(n, "ai"), []);
-});
-test("defensive play can overcome a first hit without random damage", () => {
-  let s = closeGame();
-  s = executeAction(s, "player", "STAY_ATTACK").state;
-  s = executeAction(s, "ai", "STAY_DEFEND").state;
-  while (!s.winner) {
-    s = executeAction(
-      s,
-      "player",
-      s.player.stamina >= 20 ? "STAY_ATTACK" : "STAY_DEFEND",
-    ).state;
-    if (!s.winner) s = executeAction(s, "ai", "STAY_DEFEND").state;
-  }
-  assert.equal(s.winner, "ai");
-});
-test("rule bot always chooses legal actions and resource bounds hold in a full game", () => {
-  let s = newGame();
-  while (!s.winner) {
-    const swapped = { ...s, ai: s.player, player: s.ai };
-    const p = chooseRuleAction(swapped).action;
-    assert.ok(legalActions(s, "player").includes(p));
-    s = executeAction(s, "player", p).state;
-    if (!s.winner) {
+test("rule AI supplies a valid continuous control intent in a full fight", () => {
+  const s = newGame();
+  let ai = neutralInput();
+  for (let i = 0; i < 10801 && !s.winner; i++) {
+    if (i % 12 === 0) {
       const a = chooseRuleAction(s).action;
       assert.ok(legalActions(s, "ai").includes(a));
-      s = executeAction(s, "ai", a).state;
+      ai = actionInput(a);
     }
-    for (const f of [s.ai, s.player]) {
-      assert.ok(f.health >= 0 && f.health <= 100);
-      assert.ok(f.stamina >= 0 && f.stamina <= 100);
-      assert.ok(f.x >= 0 && f.x < 7);
-    }
+    tick(s, { move: s.player.x < s.ai.x ? 1 : -1, attack: true }, ai);
+    for (const f of [s.ai, s.player])
+      assert.ok(
+        f.stamina >= 0 && f.stamina <= 100 && f.health >= 0 && f.y >= 0,
+      );
   }
-  assert.ok(["player", "ai", "draw"].includes(s.winner));
+  assert.ok(s.winner);
 });
-test("server validates positions and geometric distance, rejects forged state", () => {
-  const s = decisionState(newGame());
-  assert.deepEqual(validateState({ ...s, extra: "ignored" }), s);
-  s.ai.y = 1;
-  s.distance = distanceBetween(s.ai, s.player);
-  assert.deepEqual(validateState(s), s);
-  s.distance = 1;
-  assert.throws(() => validateState(s), /distance/);
-  s.ai.x = 7;
-  assert.throws(() => validateState(s), /fighter/);
+test("snapshot includes velocities and cooldowns and validates floats without forwarding extras", () => {
+  const s = newGame();
+  tick(s, { move: 1, jump: true });
+  const snapshot = decisionState(s);
+  assert.ok(snapshot.player.vx > 0);
+  assert.ok(snapshot.player.vy > 0);
+  assert.deepEqual(validateState({ ...snapshot, extra: "ignore" }), snapshot);
+  snapshot.player.x = Infinity;
+  assert.throws(() => validateState(snapshot));
+  const bad = decisionState(newGame());
+  bad.distance = NaN;
+  assert.throws(() => validateState(bad));
 });
-test("Jev receives all eight combinations and actual coordinates; SDK preserves probabilities", async () => {
-  const s = decisionState(newGame()),
-    request = buildJevRequest(s);
-  assert.equal(ACTIONS.length, 8);
-  assert.deepEqual(request.state, s);
-  assert.deepEqual(Object.keys(request.questions.action.criteria), ACTIONS);
+test("SDK choice schema supports realtime controls and preserves probabilities", async () => {
+  const state = decisionState(newGame()),
+    request = buildJevRequest(state);
   const probabilities = Object.fromEntries(
-    ACTIONS.map((a) => [a, a === "LEFT_DEFEND" ? 1 : 0]),
+    ACTIONS.map((a) => [a, a === "LEFT" ? 1 : 0]),
   );
   const model = new Experimental_EvaluationMockModelV4({
     doEvaluate: async () => ({
-      answers: {
-        action: { type: "choice", choice: "LEFT_DEFEND", probabilities },
-      },
+      answers: { action: { type: "choice", choice: "LEFT", probabilities } },
       warnings: [],
     }),
   });
   const r = await evaluate({ ...request, model });
-  assert.equal(validateDecision(r.answers.action, s).action, "LEFT_DEFEND");
+  assert.equal(validateDecision(r.answers.action, state).action, "LEFT");
   assert.deepEqual(
-    validateDecision(r.answers.action, s).probabilities,
+    validateDecision(r.answers.action, state).probabilities,
     probabilities,
   );
-  assert.throws(
-    () => validateDecision({ type: "choice", choice: "HEAL" }, s),
-    /unknown/,
-  );
-  s.ai.x = 0;
-  assert.throws(
-    () => validateDecision({ type: "choice", choice: "LEFT_DEFEND" }, s),
-    /unavailable/,
+  assert.throws(() =>
+    validateDecision({ type: "choice", choice: "TELEPORT" }, state),
   );
   assert.equal(
-    validateDecision({ type: "choice", choice: "STAY_DEFEND" }, s)
-      .probabilities,
+    validateDecision({ type: "choice", choice: "IDLE" }, state).probabilities,
     null,
   );
 });
