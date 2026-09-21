@@ -41,7 +41,7 @@ PORT=3000
 
 Use a Vercel AI Gateway key. Never put it in `public/`. Node loads .env; a preexisting shell variable takes precedence. .env is Git-ignored and never served or pushed to GitHub.
 
-The last live request in v1 was blocked by Vercel's requirement for a payment card in the team's [AI Gateway dashboard](https://vercel.com/gakuo-kairus-projects/~/ai). Unless you have enabled access since then, use Rule-Based AI immediately or enable your account and retry. A “key configured” label only means a key exists.
+A live version-2 request succeeded on September 20, 2026, returning HTTP 200, a combined action and all eight native probabilities. The earlier v1 account-verification block is now cleared. Manage credits/access in the team's [AI Gateway dashboard](https://vercel.com/gakuo-kairus-projects/~/ai). A “key configured” label only means a key exists; each request still depends on Gateway availability and credits.
 
 ## Inspect the decision
 **Game state → server validation → Jev choice request → probabilities + chosen combination → movement then combat.**
