@@ -1,7 +1,7 @@
 import { createCodeEditor } from './editor.js';
 import { TutorScheduler, smoothPosition, MAX_CODE_BYTES, utf8Bytes } from './scheduler.js';
 import { TutorLocalStore, filterCatalog, groupCatalog, surpriseProblem } from './library.js';
-import { starterFor, readingLevel } from './reading.js';
+import { starterFor, readingLevel, isUntouchedLegacyDraft } from './reading.js';
 
 const $ = id => document.getElementById(id);
 const starter = { python:'# Write your solution here.\n', javascript:'// Write your solution here.\n' };
@@ -106,7 +106,8 @@ function setEditorReady(ready, message = 'Choose a problem to load its starter c
 function restoreDraft() {
   const code = localState.draft(draftScope(),language);
   const initial = activeCatalogProblem ? starterFor(problem?.source?.starterCode,language) : starter[language];
-  setEditorCode(typeof code === 'string' && utf8Bytes(code) <= MAX_CODE_BYTES ? code : initial || starter[language]);
+  const usableDraft = typeof code === 'string' && utf8Bytes(code) <= MAX_CODE_BYTES && !(activeCatalogProblem && isUntouchedLegacyDraft(code,language));
+  setEditorCode(usableDraft ? code : initial || starter[language]);
 }
 
 const editor = createCodeEditor({ parent:$('editor'), nonce:document.querySelector('meta[name="style-nonce"]').content, doc:starter.python,
@@ -222,7 +223,14 @@ $('reset-signal').addEventListener('click',newSession);
 editor.view.contentDOM.addEventListener('compositionstart',() => { composing = true; scheduler.setPaused(true); });
 editor.view.contentDOM.addEventListener('compositionend',() => { composing = false; scheduler.setPaused(document.hidden); });
 document.addEventListener('visibilitychange',() => { scheduler.setPaused(document.hidden || composing); if (document.hidden) { cancelAnimationFrame(frame); frame = 0; lastFrame = null; } else moveMeter(); });
-reduced.addEventListener('change',moveMeter); window.addEventListener('pagehide',() => { scheduler.dispose(); clearTimeout(pollTimer); cancelAnimationFrame(frame); });
+reduced.addEventListener('change',moveMeter);
+window.addEventListener('pagehide',() => { scheduler.setPaused(true); clearTimeout(pollTimer); pollTimer = null; cancelAnimationFrame(frame); });
+window.addEventListener('pageshow',event => {
+  if (!event.persisted) return;
+  scheduler.setPaused(document.hidden || composing);
+  if (preparingId) pollProblem();
+  else if (problem) moveMeter();
+});
 
 setEditorReady(false); newSession();
 api('/api/tutor/catalog').then(result => {

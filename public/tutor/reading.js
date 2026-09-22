@@ -12,3 +12,7 @@ export function readingLevel(probability) {
   if (probability <= 80) return 'Warmer';
   return 'Much hotter';
 }
+
+export function isUntouchedLegacyDraft(code, language) {
+  return code === (language === 'python' ? '# Write your solution here.\n' : '// Write your solution here.\n');
+}
