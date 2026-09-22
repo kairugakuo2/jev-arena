@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
 import { createTutorHandler } from '../tutor/routes.js';
-import { evaluationFixture, graphFixture } from './fixtures/tutor.js';
+import { NEETCODE_CATALOG_VERSION } from '../tutor/neetcode-catalog.js';
+import { evaluationFixture, graphFixture, statement } from './fixtures/tutor.js';
 
 async function call(handler, method, path, data, headers = { 'content-type': 'application/json' }) {
   const request = Readable.from([Buffer.from(typeof data === 'string' ? data : JSON.stringify(data ?? {}))]);
@@ -52,4 +53,70 @@ test('provider errors are sanitized and missing probabilities are explicitly una
   const missing = createTutorHandler({ store: { get: async () => record }, evaluate: async () => null });
   const r = await call(missing,'POST','/api/tutor/evaluate',evaluationFixture());
   assert.equal(r.body.probabilities,null); assert.equal(r.body.available,false);
+});
+
+test('catalog returns safe metadata only', async () => {
+  const catalog = [{ slug:'two-integer-sum', title:'Two Integer Sum', pattern:'Arrays & Hashing', difficulty:'Easy', order:1,
+    questionUrl:'https://neetcode.io/problems/two-integer-sum', code:'0001-two-sum', python:true, javascript:true }];
+  const handler = createTutorHandler({ catalog, store: {} });
+  const response = await call(handler, 'GET', '/api/tutor/catalog');
+  assert.equal(response.status, 200);
+  assert.equal(response.body.source, 'neetcode');
+  assert.equal(response.body.version, NEETCODE_CATALOG_VERSION);
+  assert.deepEqual(response.body.problems, catalog);
+  assert.equal(response.body.referenceMaterial, undefined);
+});
+
+test('NeetCode preparation imports privately, reports stages, and returns sanitized source metadata', async () => {
+  const safeSource = { kind:'neetcode', slug:'two-integer-sum', url:'https://neetcode.io/problems/two-integer-sum', fetchedAt:'2026-09-22T00:00:00.000Z', stale:false };
+  const finalId = 'b'.repeat(64);
+  const stages = [];
+  const store = {
+    idFor: (_statement, options) => { assert.match(options.referenceMaterial, /PRIVATE/); return finalId; },
+    get: async () => { throw Error('missing'); },
+    prepare: async (_statement, onProgress, options) => {
+      assert.match(options.referenceMaterial, /PRIVATE/);
+      assert.deepEqual(options.source, safeSource);
+      onProgress('generating'); onProgress('reviewing');
+      return { problemId:finalId, graphVersion:'v1', title:'Two Sum', statement:'Visible statement', source:safeSource };
+    },
+  };
+  const importer = { import: async slug => {
+    assert.equal(slug, 'two-integer-sum');
+    return { statement:'Visible statement', referenceMaterial:'PRIVATE HIDDEN SOLUTION', coverage:{ python:true }, contentHash:'c'.repeat(64), ...safeSource };
+  } };
+  const handler = createTutorHandler({ store, importer, catalog: [{ slug:'two-integer-sum' }] });
+  const started = await call(handler, 'POST', '/api/tutor/problems', { source:'neetcode', slug:'two-integer-sum' });
+  assert.equal(started.status, 202);
+  assert.equal(started.body.status, 'importing');
+  await new Promise(resolve => setImmediate(resolve));
+  const ready = await call(handler, 'GET', `/api/tutor/problems/${started.body.problemId}`);
+  stages.push(ready.body.status);
+  assert.equal(ready.body.status, 'ready');
+  assert.equal(ready.body.problemId, finalId);
+  assert.deepEqual(ready.body.source, safeSource);
+  assert.equal(ready.body.graph, undefined);
+  assert.equal(ready.body.referenceMaterial, undefined);
+  assert.doesNotMatch(JSON.stringify(ready.body), /PRIVATE/);
+});
+
+test('custom preparation remains compatible and imported failures are attributed without leaking causes', async () => {
+  const customId = 'c'.repeat(64);
+  const store = {
+    idFor: () => customId,
+    get: async () => { throw Error('missing'); },
+    prepare: async () => ({ problemId:customId, graphVersion:'v1', title:'Custom', statement }),
+  };
+  const custom = createTutorHandler({ store, importer: { import: async () => { throw Error('secret upstream body'); } }, catalog: [{ slug:'two-integer-sum', questionUrl:'https://neetcode.io/problems/two-integer-sum' }] });
+  const customResponse = await call(custom, 'POST', '/api/tutor/problems', { statement });
+  assert.equal(customResponse.status, 202);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal((await call(custom, 'GET', `/api/tutor/problems/${customId}`)).body.status, 'ready');
+
+  const failed = await call(custom, 'POST', '/api/tutor/problems', { source:'neetcode', slug:'two-integer-sum' });
+  await new Promise(resolve => setImmediate(resolve));
+  const failure = await call(custom, 'GET', `/api/tutor/problems/${failed.body.problemId}`);
+  assert.equal(failure.body.status, 'failed');
+  assert.equal(failure.body.source.url, 'https://neetcode.io/problems/two-integer-sum');
+  assert.doesNotMatch(JSON.stringify(failure.body), /secret upstream/);
 });

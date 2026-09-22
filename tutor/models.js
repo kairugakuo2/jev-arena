@@ -9,20 +9,20 @@ function requireKey() {
   if (!process.env.AI_GATEWAY_API_KEY) throw Error('Add AI_GATEWAY_API_KEY to .env and restart the server.');
 }
 
-export async function generateGraph({ statement, previous, issues = [] }) {
+export async function generateGraph({ statement, referenceMaterial, previous, issues = [] }) {
   requireKey();
   const { output } = await generateText({ model: MAP_MODEL, system: MAPMAKER_PROMPT,
-    prompt: JSON.stringify({ problem: statement, ...(previous ? { previousGraph: previous } : {}), repairIssues: issues }),
+    prompt: JSON.stringify({ problem: statement, ...(referenceMaterial ? { referenceMaterial } : {}), ...(previous ? { previousGraph: previous } : {}), repairIssues: issues }),
     output: Output.object({ schema: graphSchema }), maxOutputTokens: 16000, maxRetries: 0,
     abortSignal: AbortSignal.timeout(180000),
   });
   return output;
 }
 
-export async function critiqueGraph({ statement, graph }) {
+export async function critiqueGraph({ statement, referenceMaterial, graph }) {
   requireKey();
   const { output } = await generateText({ model: MAP_MODEL, system: CRITIC_PROMPT,
-    prompt: JSON.stringify({ problem: statement, graph }), output: Output.object({ schema: critiqueSchema }),
+    prompt: JSON.stringify({ problem: statement, ...(referenceMaterial ? { referenceMaterial } : {}), graph }), output: Output.object({ schema: critiqueSchema }),
     maxOutputTokens: 4000, maxRetries: 0, abortSignal: AbortSignal.timeout(120000),
   });
   return output;

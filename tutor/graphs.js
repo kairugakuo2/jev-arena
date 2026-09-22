@@ -11,40 +11,42 @@ export class GraphStore {
     this.pending = new Map();
   }
 
-  idFor(statement) {
-    return createHash('sha256').update(JSON.stringify([statement.trim(), MAP_MODEL, PROMPT_VERSION])).digest('hex');
+  idFor(statement, { referenceMaterial = '', referenceHash = referenceMaterial ? createHash('sha256').update(referenceMaterial).digest('hex') : '' } = {}) {
+    return createHash('sha256').update(JSON.stringify([statement.trim(), referenceHash, MAP_MODEL, PROMPT_VERSION])).digest('hex');
   }
 
   metadata(record) {
     return { problemId: record.problemId, graphVersion: record.graphVersion, title: record.graph.title,
-      statement: record.statement, constraints: record.graph.concept.constraints, model: record.model, createdAt: record.createdAt };
+      statement: record.statement, constraints: record.graph.concept.constraints, model: record.model, createdAt: record.createdAt,
+      ...(record.source ? { source: record.source } : {}) };
   }
 
   async get(problemId) {
     if (!/^[a-f0-9]{64}$/.test(problemId)) throw Error('Invalid problem ID.');
     const record = JSON.parse(await readFile(join(this.cacheDir, `${problemId}.json`), 'utf8'));
-    if (record.problemId !== problemId || this.idFor(record.statement) !== problemId || record.promptVersion !== PROMPT_VERSION
+    if (record.problemId !== problemId || this.idFor(record.statement, { referenceHash: record.referenceHash || '' }) !== problemId || record.promptVersion !== PROMPT_VERSION
       || !record.review?.approved || record.review.issues?.length) throw Error('Graph cache requires regeneration.');
     record.graph = validateGraph(record.graph);
     return record;
   }
 
-  async prepare(statement, onProgress = () => {}) {
+  async prepare(statement, onProgress = () => {}, { referenceMaterial = '', source = null } = {}) {
     statement = statement.trim();
     if (statement.length < 40 || statement.length > 20000) throw Error('Paste a complete problem statement (40–20,000 characters).');
-    const id = this.idFor(statement);
+    const referenceHash = referenceMaterial ? createHash('sha256').update(referenceMaterial).digest('hex') : '';
+    const id = this.idFor(statement, { referenceHash });
     if (this.pending.has(id)) return this.pending.get(id);
-    const work = this.build(statement, id, onProgress);
+    const work = this.build(statement, id, onProgress, { referenceMaterial, referenceHash, source });
     this.pending.set(id, work);
     try { return await work; } finally { this.pending.delete(id); }
   }
 
-  async build(statement, problemId, onProgress) {
+  async build(statement, problemId, onProgress, { referenceMaterial, referenceHash, source }) {
     try { return this.metadata(await this.get(problemId)); } catch { /* Missing/invalid cache must be reviewed again. */ }
     let previous, issues = [];
     for (let attempt = 0; attempt < 2; attempt++) {
       onProgress(attempt ? 'repairing' : 'generating');
-      const generated = await this.generate({ statement, previous, issues });
+      const generated = await this.generate({ statement, referenceMaterial, previous, issues });
       try { previous = validateGraph(generated); }
       catch (error) {
         previous = generated;
@@ -52,10 +54,10 @@ export class GraphStore {
         continue;
       }
       onProgress('reviewing');
-      const review = critiqueSchema.parse(await this.critique({ statement, graph: previous }));
+      const review = critiqueSchema.parse(await this.critique({ statement, referenceMaterial, graph: previous }));
       if (!review.approved || review.issues.length) { issues = review.issues.length ? review.issues : ['Review did not approve the graph.']; continue; }
       const record = { problemId, graphVersion: PROMPT_VERSION, model: MAP_MODEL, promptVersion: PROMPT_VERSION,
-        createdAt: new Date().toISOString(), statement, graph: previous, review };
+        createdAt: new Date().toISOString(), statement, referenceHash, ...(source ? { source } : {}), graph: previous, review };
       await mkdir(this.cacheDir, { recursive: true });
       const temporary = join(this.cacheDir, `${problemId}.${randomUUID()}.tmp`);
       await writeFile(temporary, JSON.stringify(record), { mode: 0o600 });

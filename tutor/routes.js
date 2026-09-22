@@ -1,6 +1,9 @@
+import { createHash } from 'node:crypto';
 import { GraphStore } from './graphs.js';
 import { evaluateCode } from './models.js';
 import { validateEvaluation } from './schema.js';
+import { NEETCODE_CATALOG, NEETCODE_CATALOG_VERSION } from './neetcode-catalog.js';
+import { NeetCodeImporter } from './neetcode-importer.js';
 
 function json(res, status, data) {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -19,14 +22,46 @@ async function readJson(req, limit = 524288) {
   catch { throw Object.assign(Error('Invalid JSON.'), { status: 400 }); }
 }
 
-export function createTutorHandler({ store = new GraphStore(), evaluate = evaluateCode } = {}) {
+export function createTutorHandler({ store = new GraphStore(), evaluate = evaluateCode, catalog = NEETCODE_CATALOG, importer = new NeetCodeImporter({ catalog }) } = {}) {
   const jobs = new Map(), sessions = new Set();
+  const catalogBySlug = new Map(catalog.map(problem => [problem.slug, problem]));
   let generating = false;
   return async (req, res, path) => {
     if (!path.startsWith('/api/tutor/')) return false;
     try {
+      if (req.method === 'GET' && path === '/api/tutor/catalog') {
+        json(res,200,{ source:'neetcode', version:NEETCODE_CATALOG_VERSION, problems:catalog }); return true;
+      }
       if (req.method === 'POST' && path === '/api/tutor/problems') {
         const input = await readJson(req, 30000);
+        if (input?.source === 'neetcode') {
+          const problem = typeof input.slug === 'string' ? catalogBySlug.get(input.slug) : null;
+          if (!problem) { json(res,400,{ error:'Choose a problem from the NeetCode catalog.' }); return true; }
+          const jobId = createHash('sha256').update(`neetcode:${problem.slug}`).digest('hex');
+          if (jobs.has(jobId) && !['failed','ready'].includes(jobs.get(jobId).status)) {
+            json(res,202,{ problemId:jobId, status:jobs.get(jobId).status }); return true;
+          }
+          if (generating) { json(res,429,{ error:'Another problem is being prepared. Please wait.' }); return true; }
+          generating = true;
+          jobs.set(jobId,{ status:'importing' });
+          (async () => {
+            try {
+              const imported = await importer.import(problem.slug);
+              const source = { kind:'neetcode', slug:problem.slug, url:imported.url || problem.questionUrl, fetchedAt:imported.fetchedAt, stale:imported.stale };
+              const problemId = store.idFor(imported.statement, { referenceMaterial:imported.referenceMaterial });
+              try {
+                jobs.set(jobId,{ status:'ready', ...store.metadata(await store.get(problemId)) });
+              } catch {
+                const metadata = await store.prepare(imported.statement, status => jobs.set(jobId,{ status:status === 'reviewing' ? 'reviewing_reference' : 'mapping_approaches' }),
+                  { referenceMaterial:imported.referenceMaterial, source });
+                jobs.set(jobId,{ status:'ready', ...metadata });
+              }
+            } catch {
+              jobs.set(jobId,{ status:'failed', error:'NeetCode source import or problem preparation failed. Try again, or use the Custom tab.', source:{ kind:'neetcode', slug:problem.slug, url:problem.questionUrl } });
+            } finally { generating = false; }
+          })();
+          json(res,202,{ problemId:jobId, status:'importing' }); return true;
+        }
         if (typeof input?.statement !== 'string' || input.statement.trim().length < 40 || input.statement.length > 20000) {
           json(res,400,{ error: 'Paste the complete problem, including constraints (40–20,000 characters).' }); return true;
         }

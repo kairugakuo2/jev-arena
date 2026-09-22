@@ -10,7 +10,7 @@ Both run on [`typesafe-ai/jev`](https://vercel.com/kb/guide/typesafe-jev-and-ai-
 
 ### Coding Navigator (`/tutor`)
 
-Paste a LeetCode-style problem and write a solution in Python or JavaScript. As you type, a meter moves toward **hotter** when your edits bring you closer to a working algorithm and toward **colder** when they lead you away. It never shows you the answer, and your code is never run.
+Choose from the built-in NeetCode 150 library or paste a custom problem, then write a solution in Python or JavaScript. Search and filter the library by pattern, difficulty and local progress; **Continue your roadmap** resumes your latest unfinished attempt, while **Surprise me** picks an unfinished problem inside your active filters. As you type, a meter moves toward **hotter** when your edits bring you closer to a working algorithm and toward **colder** when they lead you away. It never shows you the answer, and your code is never run.
 
 Behind the scenes, a larger model first maps the problem's solution space: brute-force, acceptable and optimal approaches, the partial steps between them, and common dead ends. Jev then compares each batch of your edits against that map. See [How the Navigator works](#how-the-navigator-works).
 
@@ -55,9 +55,11 @@ If `npm start` fails with `node: bad option: --env-file-if-exists`, your Node.js
 
 ### Try the Navigator
 
-1. Open **Coding Navigator**. Two Sum is filled in as an example problem.
-2. Click **Prepare problem**. The first run for a new problem builds its solution map, which takes about 90 seconds. After that it's cached in `.cache/tutor/` and loads instantly.
+1. Open **Coding Navigator** and choose a problem from the NeetCode 150 library. The **Custom** tab still accepts a full problem statement you paste yourself.
+2. The first library open imports the source, then builds its solution map. Preparation shows four stages: importing source, mapping approaches, reviewing reference and ready. Later opens use private caches.
 3. Start typing a solution. The meter updates a moment after each pause. A nested-loop brute force should read strongly hotter. Swapping in a hash map should read hotter again.
+
+Python and JavaScript drafts are stored separately for each library problem. The 20 most recently used problem drafts share a 2 MiB local browser budget. An attempt starts with your first real edit; completion changes only when you use **Mark complete**. A hotter reading never marks a problem complete.
 
 ## Configuration
 
@@ -71,12 +73,22 @@ All settings live in `.env`. The server reads it at startup, so restart after ch
 
 ## How the Navigator works
 
-1. **Map the problem (once).** The mapmaker model writes a structured description of the solution space. A second pass reviews it for real errors, such as a wrong expected output. Wording nitpicks don't block approval. If it finds a blocking error, the map is repaired once. Approved maps are cached on disk.
+1. **Import and map the problem (once).** For a library problem, the server imports the visible statement plus hidden NeetCode article prose and complete Python/JavaScript references. The browser receives only the statement and attribution. The mapmaker writes a structured description of the solution space, and a second pass reviews it for real errors. Custom problems use only the pasted statement. Approved maps are cached on disk.
 2. **Sample your code.** The browser sends a snapshot about 300 ms after you stop typing, or at most every second while you keep typing. Only one request is in flight at a time, and results that arrive after newer edits are dropped.
 3. **Judge the direction.** Jev gets the map, your code before and after your latest edits, and a short edit history. It returns `{ hotter, colder }` probabilities, usually within 300–800 ms.
 4. **Move the meter.** The needle eases toward each new reading instead of jumping.
 
 The reading describes the direction of your recent edits. It isn't a grade, and it doesn't measure how close you are to finishing.
+
+### NeetCode source and cache behavior
+
+- The bundled catalog contains metadata only. Selecting a problem makes the first network request to NeetCode; source content is never committed to this repository.
+- Imported sources are validated, hashed and atomically cached under `.cache/tutor/sources/` with private file permissions. Entries older than seven days are revalidated. If that refresh fails, a validated stale entry remains usable.
+- Requests are restricted to HTTPS on `neetcode.io` and the official `raw.githubusercontent.com/neetcode-gh/leetcode` repository, with short timeouts, redirect limits, content-type checks and bounded streaming reads.
+- The current NeetCode site renders problem pages in the browser, so the importer uses the same public problem-metadata endpoint as NeetCode's frontend for the visible description. It reads article prose and reference files from the official repository. Upstream HTML, API or repository layout changes may require a parser update.
+- Imported text is treated as untrusted model input. Hidden references, raw source records and solution graphs are never returned by browser APIs.
+
+The official [NeetCode solution repository](https://github.com/neetcode-gh/leetcode) is [MIT-licensed](https://github.com/neetcode-gh/leetcode/blob/main/LICENSE). Jev Lab attributes imported problems to NeetCode and keeps the fetched text local. It does not use LeetCode's undocumented GraphQL endpoint or scrape LeetCode pages; [LeetCode's terms prohibit crawling and scraping](https://leetcode.com/terms/).
 
 ## AI Gladiator controls
 
@@ -93,7 +105,7 @@ Touch devices get on-screen buttons. Full combat rules are under **How to play**
 ## Development
 
 ```sh
-npm test         # 31 tests: game physics, scheduler timing, schema and API routes
+npm test         # deterministic game, scheduler, importer, storage, schema and API tests
 npm run build    # rebuild public/tutor/bundle.js after editing public/tutor/*.js
 ```
 
@@ -116,6 +128,7 @@ test/                  node:test suites
 - **Occasional dropped readings.** The Gateway sometimes returns "high demand" errors for Jev. The app retries with backoff, and the meter holds its last reading in the meantime.
 - **The map isn't exhaustive.** A valid approach the mapmaker didn't anticipate may read as neutral rather than hotter.
 - **Python and JavaScript only** in the Navigator.
+- **Source formats can change.** The importer is intentionally narrow and fails closed if NeetCode's public metadata or repository layout no longer matches its validated format. You can still use the Custom tab.
 - **Experimental API.** Jev is called through the AI SDK's `experimental_evaluate`, which may change.
 
 ## Feedback

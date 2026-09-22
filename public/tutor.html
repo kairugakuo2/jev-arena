@@ -9,25 +9,51 @@
   <script type="module" src="/tutor/bundle.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <header class="topbar">
     <a class="brand" href="/" aria-label="Back to Jev Lab"><span class="brand-mark" aria-hidden="true">J</span> Jev Lab</a>
     <span class="breadcrumb"><span>/</span> <strong>Coding Navigator</strong></span>
     <span class="connection" id="connection">Checking Gateway…</span>
   </header>
-  <main>
-    <div class="heading"><h1>Coding Navigator</h1><p class="subtitle">Paste a problem and write your solution. The meter shows whether your latest edits are moving toward a working algorithm.</p></div>
+  <main id="main-content">
+    <div class="heading"><h1>Coding Navigator</h1><p class="subtitle">Choose a NeetCode 150 problem or paste your own. The meter shows whether your latest edits are moving toward a working algorithm.</p></div>
     <div class="workspace">
       <section class="problem-panel panel" aria-labelledby="problem-title">
-        <div class="panel-tab">Problem</div>
-        <div class="problem-body"><h2 id="problem-title">Paste a problem</h2>
-          <form id="problem-form">
-            <label for="problem-input">Problem statement, examples and constraints</label>
-            <textarea id="problem-input" minlength="40" maxlength="20000" required spellcheck="false"></textarea>
-            <button class="primary" id="prepare" type="submit">Prepare problem</button>
-            <p class="helper">The first time you prepare a problem, Jev Lab builds a reference map of valid approaches. That takes about a minute and a half, then it's cached.</p>
-          </form>
-          <div id="problem-ready" hidden><div id="problem-text"></div><button class="text-button" id="change-problem" type="button">Change problem</button></div>
-          <p id="problem-status" class="problem-status" role="status">Two Sum is filled in as an example.</p>
+        <div class="entry-tabs" role="tablist" aria-label="Problem source">
+          <button id="library-tab" class="entry-tab active" type="button" role="tab" aria-selected="true" aria-controls="library-pane">Library</button>
+          <button id="custom-tab" class="entry-tab" type="button" role="tab" aria-selected="false" aria-controls="custom-pane">Custom</button>
+        </div>
+        <div class="problem-body"><h2 id="problem-title">NeetCode 150 library</h2>
+          <div id="library-pane" role="tabpanel" aria-labelledby="library-tab">
+            <button class="roadmap-card" id="continue-problem" type="button" disabled>
+              <span>Continue your roadmap</span><strong id="continue-label">Loading your next problem…</strong>
+            </button>
+            <div class="catalog-filters">
+              <label class="search-field" for="catalog-search">Search problems<input id="catalog-search" type="search" autocomplete="off" placeholder="Title or pattern"></label>
+              <label for="pattern-filter">Pattern<select id="pattern-filter"><option value="all">All patterns</option></select></label>
+              <label for="difficulty-filter">Difficulty<select id="difficulty-filter"><option value="all">All levels</option><option>Easy</option><option>Medium</option><option>Hard</option></select></label>
+              <label for="status-filter">Progress<select id="status-filter"><option value="all">All progress</option><option value="unstarted">Unstarted</option><option value="attempted">Attempted</option><option value="completed">Completed</option></select></label>
+            </div>
+            <div class="catalog-actions"><span id="catalog-count">Loading catalog…</span><button class="quiet-button" id="surprise-problem" type="button" disabled>Surprise me</button></div>
+            <div id="catalog-results" class="catalog-results" aria-live="polite"></div>
+            <div id="surprise-empty" class="empty-state" hidden>No unfinished problems match these filters. <button class="text-button" id="include-completed" type="button">Include completed problems</button></div>
+            <p class="attribution">Problem statements and reference material are imported from <a href="https://neetcode.io/practice/practice/neetcode150" target="_blank" rel="noreferrer">NeetCode</a> only when you select a problem.</p>
+          </div>
+          <div id="custom-pane" role="tabpanel" aria-labelledby="custom-tab" hidden>
+            <form id="problem-form">
+              <label for="problem-input">Problem statement, examples and constraints</label>
+              <textarea id="problem-input" minlength="40" maxlength="20000" required spellcheck="false"></textarea>
+              <button class="primary" id="prepare" type="submit">Prepare custom problem</button>
+              <p class="helper">Jev Lab builds and privately caches a reference map of valid approaches. Custom problems use only the text you paste.</p>
+            </form>
+          </div>
+          <div id="problem-ready" hidden>
+            <div class="ready-heading"><span id="problem-source" class="source-badge">Custom</span><label id="complete-label" class="complete-toggle" hidden><input id="mark-complete" type="checkbox"> Mark complete</label></div>
+            <div id="problem-text"></div>
+            <a id="source-link" class="source-link" target="_blank" rel="noreferrer" hidden>View on NeetCode</a>
+            <button class="text-button" id="change-problem" type="button">Choose another problem</button>
+          </div>
+          <p id="problem-status" class="problem-status" role="status">Loading the NeetCode 150 catalog…</p>
         </div>
       </section>
       <section class="editor-panel panel" aria-label="Code workspace">

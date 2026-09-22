@@ -71,6 +71,27 @@ test('independent review repairs once, rechecks, caches, and keeps reference con
   assert.equal((await restarted.prepare(statement)).problemId, a.problemId);
 });
 
+test('imported references enrich graph preparation, affect identity, and remain out of metadata', async () => {
+  const cacheDir = await mkdtemp(join(tmpdir(), 'jev-reference-test-'));
+  const calls = [];
+  const store = new GraphStore({ cacheDir,
+    generate: async input => { calls.push(['generate', input]); return graphFixture(); },
+    critique: async input => { calls.push(['critique', input]); return { approved: true, issues: [], suggestions: [] }; },
+  });
+  const source = { kind: 'neetcode', slug: 'two-integer-sum', url: 'https://neetcode.io/problems/two-integer-sum', fetchedAt: '2026-09-22T00:00:00.000Z', stale: false };
+  const referenceMaterial = 'PRIVATE REFERENCE SOLUTION';
+  const customId = store.idFor(statement);
+  const importedId = store.idFor(statement, { referenceMaterial });
+  assert.notEqual(importedId, customId);
+  const metadata = await store.prepare(statement, () => {}, { referenceMaterial, source });
+  assert.equal(metadata.problemId, importedId);
+  assert.equal(calls[0][1].referenceMaterial, referenceMaterial);
+  assert.equal(calls[1][1].referenceMaterial, referenceMaterial);
+  assert.deepEqual(metadata.source, source);
+  assert.equal(metadata.referenceMaterial, undefined);
+  assert.doesNotMatch(JSON.stringify(metadata), /PRIVATE REFERENCE/);
+});
+
 test('rejected repaired graphs never become active or reach the disk cache', async () => {
   const cacheDir = await mkdtemp(join(tmpdir(), 'jev-rejected-test-'));
   let count = 0;

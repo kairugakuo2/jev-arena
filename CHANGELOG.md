@@ -1,5 +1,15 @@
 # Version history
 
+## 5.1.0 — NeetCode 150 library
+
+- Made a searchable, filterable NeetCode 150 library the default Coding Navigator entry while preserving Custom paste mode.
+- Added Continue your roadmap, filtered Surprise me, manual completion tracking and separate Python/JavaScript drafts with bounded local LRU storage.
+- Added a strict server-side NeetCode importer with exact host allowlists, redirect/time/body limits, content validation, private atomic caching, seven-day revalidation and stale fallback.
+- Enriched solution-graph preparation with hidden NeetCode article prose and complete Python/JavaScript references without exposing references or graphs to the browser.
+- Added visible import/map/review/ready stages, NeetCode attribution and a Custom fallback when first import fails.
+- Fixed UTF-8 editor limits, oversized-to-valid document transitions, bounded edit-history compaction and permanent retries for deterministic client errors.
+- Added deterministic catalog, importer, cache, API, local progress, draft, accessibility and regression coverage. Live NeetCode and Gateway checks remain optional.
+
 ## 5.0.0 — Coding Navigator
 
 - Added the Coding Navigator at `/tutor`: a CodeMirror editor with a live hotter/colder meter.
