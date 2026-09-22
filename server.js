@@ -1,9 +1,11 @@
 // Tiny local HTTP server: static browser files + one secret-bearing Jev endpoint.
 import { createServer } from "node:http";
+import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { chooseJevAction, buildJevRequest } from "./jev-ai.js";
 import { ACTIONS, distanceBetween } from "./public/arena/game.js";
+import { createTutorHandler } from "./tutor/routes.js";
 
 export const staticFiles = {
   "/": ["index.html", "text/html"],
@@ -15,11 +17,16 @@ export const staticFiles = {
   "/arena/app.js": ["arena/app.js", "text/javascript"],
   "/arena/game.js": ["arena/game.js", "text/javascript"],
   "/arena/rule-ai.js": ["arena/rule-ai.js", "text/javascript"],
+  "/tutor": ["tutor.html", "text/html"],
+  "/tutor/": ["tutor.html", "text/html"],
+  "/tutor/styles.css": ["tutor/styles.css", "text/css"],
+  "/tutor/bundle.js": ["tutor/bundle.js", "text/javascript"],
 };
 export const decisionPaths = new Set(["/api/arena/decide", "/api/decide"]);
 const port = Number(process.env.PORT || 3000);
 const hosts = new Set([`localhost:${port}`, `127.0.0.1:${port}`]);
 let activeRequest = false;
+const handleTutor = createTutorHandler();
 
 function json(response, status, data) {
   response.writeHead(status, {
@@ -102,6 +109,7 @@ export const server = createServer(async (request, response) => {
     });
   }
   const path = new URL(request.url, `http://localhost:${port}`).pathname;
+  if (await handleTutor(request, response, path)) return;
   if (request.method === "GET" && path === "/api/status") {
     return json(response, 200, {
       configured: Boolean(process.env.AI_GATEWAY_API_KEY),
@@ -145,9 +153,14 @@ export const server = createServer(async (request, response) => {
     return json(response, 404, { error: "Not found." });
   const [filename, type] = staticFiles[path];
   try {
-    const content = await readFile(
+    let content = await readFile(
       new URL(`./public/${filename}`, import.meta.url),
     );
+    if (filename === 'tutor.html') {
+      const nonce = randomBytes(18).toString('base64');
+      content = content.toString('utf8').replaceAll('__STYLE_NONCE__', nonce);
+      response.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self'; style-src 'self' 'nonce-${nonce}'; style-src-attr 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'`);
+    }
     response.writeHead(200, {
       "Content-Type": `${type}; charset=utf-8`,
       "Cache-Control": "no-store",

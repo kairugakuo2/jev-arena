@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Jev Lab is a local collection of interactive projects powered by one shared Jev connection."
+      content="Jev Lab: small local projects built on Vercel's Jev decision model."
     />
-    <title>Jev Lab · Projects</title>
+    <title>Jev Lab</title>
     <link rel="stylesheet" href="/hub.css" />
     <script type="module" src="/hub.js"></script>
   </head>
@@ -15,119 +15,82 @@
     <div class="shell">
       <header class="topbar">
         <a class="brand" href="/" aria-label="Jev Lab home">
-          <span class="brand-icon">J</span>
-          <span>JEV</span>
-          <span class="brand-sub">/ LAB</span>
+          <span class="brand-icon" aria-hidden="true">J</span>
+          <span>Jev Lab</span>
         </a>
-        <span class="lab-label"
-          ><span class="dot"></span>LOCAL AI WORKSPACE</span
-        >
-        <span class="project-count">01 PROJECT</span>
+        <div class="gateway" id="gateway-status" role="status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>Checking Gateway…</span>
+        </div>
       </header>
 
       <main>
         <section class="hero">
-          <div>
-            <p class="eyebrow">ONE MODEL CONNECTION · MANY EXPERIMENTS</p>
-            <h1>Your Jev projects,<br /><em>all in one lab.</em></h1>
-          </div>
-          <div class="hero-copy">
-            <p>
-              Explore small projects that make Jev's decisions visible. Every
-              project uses the same private local Gateway connection.
-            </p>
-            <div class="gateway" id="gateway-status" role="status">
-              <span class="status-dot"></span>
-              <span>Checking shared Gateway…</span>
-            </div>
-          </div>
+          <h1>Jev Lab</h1>
+          <p>
+            Small projects built on <code>typesafe-ai/jev</code>, a model that
+            answers multiple-choice questions with probabilities. Each project
+            runs through a local Node server that keeps the API key off the
+            browser.
+          </p>
         </section>
 
         <section class="projects" aria-labelledby="projects-title">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">PROJECT DIRECTORY</p>
-              <h2 id="projects-title">Choose an experiment</h2>
-            </div>
-            <span>More rooms can be added here later.</span>
-          </div>
+          <h2 id="projects-title">Projects</h2>
 
-          <article class="project-card featured">
-            <a
-              class="project-link"
-              href="/arena"
-              aria-label="Open AI Gladiator"
-            >
-              <div class="card-number">01</div>
+          <article class="project-card">
+            <a class="project-link" href="/arena">
               <div class="arena-preview" aria-hidden="true">
-                <div class="scanlines"></div>
                 <div class="mini-fighter player"><i></i><b></b></div>
-                <span class="versus">VS</span>
                 <div class="mini-fighter jev"><i></i><b></b></div>
                 <div class="floor"></div>
               </div>
               <div class="card-content">
-                <div class="card-heading">
-                  <div>
-                    <span class="category"
-                      >REAL-TIME GAME · LIVE DECISIONS</span
-                    >
-                    <h3>AI Gladiator</h3>
-                  </div>
-                  <span class="launch" aria-hidden="true">↗</span>
-                </div>
+                <h3>AI Gladiator</h3>
                 <p>
-                  Move, jump, attack, and defend while Jev continuously chooses
-                  controls from live position, velocity, stamina, and cooldown
-                  snapshots.
+                  A real-time 2D fight against Jev. Every half second Jev reads
+                  both fighters' position, velocity, stamina and cooldowns, and
+                  picks one of 12 controls.
                 </p>
-                <div class="tags">
-                  <span>Keyboard controls</span>
-                  <span>12 choices</span>
-                  <span>Probability inspector</span>
-                </div>
-                <div class="card-footer">
-                  <span><i class="live-dot"></i> READY TO PLAY</span>
-                  <strong>Enter Arena <span>→</span></strong>
-                </div>
+                <ul class="tags">
+                  <li>Keyboard or touch</li>
+                  <li>Rule-based opponent works offline</li>
+                  <li>Shows each decision's probabilities</li>
+                </ul>
+                <span class="open">Open Arena →</span>
               </div>
             </a>
           </article>
 
-          <article
-            class="project-card placeholder"
-            aria-label="Empty project slot"
-          >
-            <div class="placeholder-plus" aria-hidden="true">+</div>
-            <div>
-              <span class="category">NEXT EXPERIMENT</span>
-              <h3>Room for what comes next</h3>
-              <p>
-                A router, classifier, puzzle, simulation, or whatever else you
-                want to teach Jev to decide.
-              </p>
-            </div>
+          <article class="project-card">
+            <a class="project-link" href="/tutor">
+              <div class="tutor-preview" aria-hidden="true">
+                <div class="preview-meter"><i></i></div>
+                <div class="preview-labels"><span>Colder</span><span>Hotter</span></div>
+              </div>
+              <div class="card-content">
+                <h3>Coding Navigator</h3>
+                <p>
+                  Paste a LeetCode-style problem and start writing a solution.
+                  Jev compares each batch of edits against a reference map of
+                  valid approaches and tells you whether you're getting hotter
+                  or colder. It never shows you the answer.
+                </p>
+                <ul class="tags">
+                  <li>Python and JavaScript</li>
+                  <li>Updates while you type</li>
+                  <li>Code is never executed</li>
+                </ul>
+                <span class="open">Open Navigator →</span>
+              </div>
+            </a>
           </article>
-        </section>
-
-        <section class="connection-note">
-          <span class="note-index">SHARED / 01</span>
-          <div>
-            <h2>One key, kept server-side.</h2>
-            <p>
-              The projects share <code>AI_GATEWAY_API_KEY</code> through this
-              local Node server. Browser pages never receive or store the key.
-            </p>
-          </div>
-          <span class="key-mark" aria-hidden="true">{ ··· }</span>
         </section>
       </main>
 
       <footer>
-        <span
-          >JEV LAB <span>/ Local experiments in visible decisions.</span></span
-        >
-        <span>localhost:3000</span>
+        <span>Jev Lab</span>
+        <a href="https://github.com/kairugakuo2/jev-arena">Source on GitHub</a>
       </footer>
     </div>
   </body>

@@ -1,5 +1,12 @@
 # Version history
 
+## 5.0.0 — Coding Navigator
+
+- Added the Coding Navigator at `/tutor`: a CodeMirror editor with a live hotter/colder meter.
+- A mapmaker model (`openai/gpt-5-mini`) builds a reviewed, cached map of each problem's solution space. Jev compares each batch of edits against it.
+- Continuous-typing scheduler: one request in flight, newest snapshot wins, stale responses are dropped, failures back off.
+- Rewrote dashboard, Arena and Navigator copy and simplified their styling.
+
 ## 4.0.0 — Jev Lab dashboard
 
 - Turned localhost:3000 into a project dashboard named Jev Lab.

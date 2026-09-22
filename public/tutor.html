@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="style-nonce" content="__STYLE_NONCE__">
+  <meta name="description" content="Write a solution to a coding problem and get live hotter/colder feedback from Jev.">
+  <title>Coding Navigator · Jev Lab</title>
+  <link rel="stylesheet" href="/tutor/styles.css">
+  <script type="module" src="/tutor/bundle.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Back to Jev Lab"><span class="brand-mark" aria-hidden="true">J</span> Jev Lab</a>
+    <span class="breadcrumb"><span>/</span> <strong>Coding Navigator</strong></span>
+    <span class="connection" id="connection">Checking Gateway…</span>
+  </header>
+  <main>
+    <div class="heading"><h1>Coding Navigator</h1><p class="subtitle">Paste a problem and write your solution. The meter shows whether your latest edits are moving toward a working algorithm.</p></div>
+    <div class="workspace">
+      <section class="problem-panel panel" aria-labelledby="problem-title">
+        <div class="panel-tab">Problem</div>
+        <div class="problem-body"><h2 id="problem-title">Paste a problem</h2>
+          <form id="problem-form">
+            <label for="problem-input">Problem statement, examples and constraints</label>
+            <textarea id="problem-input" minlength="40" maxlength="20000" required spellcheck="false"></textarea>
+            <button class="primary" id="prepare" type="submit">Prepare problem</button>
+            <p class="helper">The first time you prepare a problem, Jev Lab builds a reference map of valid approaches. That takes about a minute and a half, then it's cached.</p>
+          </form>
+          <div id="problem-ready" hidden><div id="problem-text"></div><button class="text-button" id="change-problem" type="button">Change problem</button></div>
+          <p id="problem-status" class="problem-status" role="status">Two Sum is filled in as an example.</p>
+        </div>
+      </section>
+      <section class="editor-panel panel" aria-label="Code workspace">
+        <div class="editor-top"><div class="filename-tab"><span id="filename">solution.py</span></div><label class="language-label"><span class="sr-only">Programming language</span><select id="language"><option value="python">Python</option><option value="javascript">JavaScript</option></select></label></div>
+        <div id="editor"></div>
+        <div class="editor-bottom"><span id="cursor-position">Ln 1, Col 1</span><span>Spaces: 4</span><span id="save-state">Local draft</span></div>
+        <p id="editor-help">Tab to indent · Shift+Tab to unindent · Esc, then Tab to leave editor</p>
+      </section>
+      <aside class="signal-panel" aria-label="Live algorithmic direction">
+        <div class="signal-header">Direction</div>
+        <div id="heat-meter" class="unmeasured"><div class="reading-row"><span id="reading">—</span><span class="percent">%</span></div><p class="reading-label">hotter probability</p>
+          <div class="meter-labels"><span>Colder</span><span>Hotter</span></div>
+          <div id="meter" class="meter" role="meter" aria-label="Probability recent edits are hotter" aria-valuemin="0" aria-valuemax="100"><div id="meter-fill"></div><div class="meter-center"></div><div id="meter-marker"></div></div>
+        </div>
+        <h2 id="direction">Waiting for your first edits</h2><p class="measured" id="measured">No reading yet</p>
+        <div class="live-state" id="live-state" data-state="inactive"><span class="live-dot"></span><span id="live-label">Prepare a problem to begin</span></div>
+        <p id="feedback-error" class="feedback-error" role="status"></p>
+        <p class="signal-explanation">Based on your most recent edits, not on how much of the problem you've solved. Readings near 50 mean the change was neutral or unclear.</p>
+        <button class="text-button" id="reset-signal" type="button">Reset comparison</button>
+        <details class="inspector"><summary>Developer inspector</summary><dl><dt>Revisions</dt><dd id="revision-info">—</dd><dt>Request latency</dt><dd id="latency-info">No samples</dd><dt>Reference</dt><dd id="graph-info">No graph active</dd></dl><pre id="result-json">No judgment yet.</pre></details>
+        <span id="announcement" class="sr-only" role="status" aria-live="polite"></span>
+      </aside>
+    </div>
+    <footer><span>Your code is sent to Jev for evaluation. It is never run.</span></footer>
+  </main>
+</body>
+</html>
