@@ -77,6 +77,20 @@ export function extractDescription(body, expectedId) {
   return statement;
 }
 
+function extractStarterCode(body, problem) {
+  let data;
+  try { data = JSON.parse(body)?.data; } catch { throw Error('NeetCode starter code was malformed.'); }
+  if (data?.id !== problem.sourceId || !data.starterCode || typeof data.starterCode !== 'object') throw Error('NeetCode starter code was unavailable.');
+  const code = {};
+  for (const language of ['python', 'javascript']) {
+    if (!problem[language]) continue;
+    const value = data.starterCode[language];
+    if (typeof value !== 'string' || !value.trim() || byteLength(value) > 16 * 1024) throw Error(`NeetCode ${language} starter code was invalid.`);
+    code[language] = value;
+  }
+  return code;
+}
+
 export function extractArticleProse(markdown) {
   return markdown.replace(/```[\s\S]*?```/g,'\n').replace(/^::[^\n]*$/gm,'').replace(/<[^>]+>/g,' ')
     .replace(/[ \t]+/g,' ').replace(/ *\n{3,} */g,'\n\n').trim();
@@ -100,14 +114,16 @@ function validateCache(record, problem) {
   if (record.hashes?.statement !== hash(record.statement) || record.hashes?.reference !== hash(record.referenceMaterial)) throw Error('Invalid source cache hashes.');
   const contentHash = hash(JSON.stringify([record.statement, record.hashes.reference, record.coverage]));
   if (contentHash !== record.contentHash) throw Error('Invalid source cache fingerprint.');
+  extractStarterCode(record.resources?.question?.body, problem);
   return record;
 }
 
-function publicSource(record, stale = false) {
+function publicSource(record, problem, stale = false) {
   return {
     slug: record.slug, url: record.url, fetchedAt: record.fetchedAt, stale,
     statement: record.statement, referenceMaterial: record.referenceMaterial,
     coverage: record.coverage, contentHash: record.contentHash,
+    starterCode: extractStarterCode(record.resources.question.body, problem),
   };
 }
 
@@ -129,13 +145,13 @@ export class NeetCodeImporter {
     let cached;
     try { cached = validateCache(JSON.parse(await readFile(join(this.cacheDir, `${slug}.json`), 'utf8')), problem); }
     catch { cached = null; }
-    if (cached && this.now() - Date.parse(cached.fetchedAt) <= MAX_AGE_MS) return publicSource(cached);
+    if (cached && this.now() - Date.parse(cached.fetchedAt) <= MAX_AGE_MS) return publicSource(cached, problem);
     try {
       const record = await this.fetchSource(problem, cached);
       await this.writeCache(record);
-      return publicSource(record);
+      return publicSource(record, problem);
     } catch (error) {
-      if (cached) return publicSource(cached, true);
+      if (cached) return publicSource(cached, problem, true);
       throw error;
     }
   }
@@ -151,6 +167,7 @@ export class NeetCodeImporter {
       }
     }
     const statement = extractDescription(resources.question.body,problem.sourceId);
+    extractStarterCode(resources.question.body, problem);
     const references = [];
     const coverage = { article: false, python: false, javascript: false };
     for (const kind of ['python', 'javascript', 'article']) {

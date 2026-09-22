@@ -1,5 +1,12 @@
 # Version history
 
+## 5.2.0 — Starter code and clearer live readings
+
+- Library problems now open with NeetCode's Python or JavaScript starter signatures and a short writing prompt.
+- The editor stays visibly unavailable until a problem is prepared, avoiding silent edits with no Jev reading.
+- Added five descriptive hotter/colder probability bands; they remain directional readings, not correctness grades.
+- Removed roadmap, attempts, manual completion and progress filtering. Existing local progress is cleared while drafts are retained.
+
 ## 5.1.0 — NeetCode 150 library
 
 - Made a searchable, filterable NeetCode 150 library the default Coding Navigator entry while preserving Custom paste mode.

@@ -3,22 +3,12 @@ export const MAX_DRAFT_PROBLEMS = 20;
 export const MAX_DRAFT_BYTES = 2 * 1024 * 1024;
 
 const bytes = value => new TextEncoder().encode(value).byteLength;
-const progressKey = slug => `neetcode:${slug}`;
-
-export function problemStatus(problem, progress) {
-  const value = progress[progressKey(problem.slug)];
-  if (value?.completedAt) return 'completed';
-  if (value?.attemptedAt) return 'attempted';
-  return 'unstarted';
-}
-
-export function filterCatalog(problems, filters, progress = {}) {
+export function filterCatalog(problems, filters) {
   const query = (filters.query || '').trim().toLocaleLowerCase();
   return problems.filter(problem => {
     if (query && !`${problem.title} ${problem.pattern}`.toLocaleLowerCase().includes(query)) return false;
     if (filters.pattern && filters.pattern !== 'all' && problem.pattern !== filters.pattern) return false;
     if (filters.difficulty && filters.difficulty !== 'all' && problem.difficulty !== filters.difficulty) return false;
-    if (filters.status && filters.status !== 'all' && problemStatus(problem, progress) !== filters.status) return false;
     return true;
   }).sort((a, b) => a.order - b.order);
 }
@@ -32,17 +22,8 @@ export function groupCatalog(problems) {
   return [...groups].map(([pattern, entries]) => ({ pattern, problems: entries }));
 }
 
-export function continueProblem(problems, progress = {}) {
-  const unfinished = problems.filter(problem => {
-    const value = progress[progressKey(problem.slug)];
-    return value?.attemptedAt && !value.completedAt;
-  }).sort((a, b) => Date.parse(progress[progressKey(b.slug)].attemptedAt) - Date.parse(progress[progressKey(a.slug)].attemptedAt));
-  if (unfinished.length) return unfinished[0];
-  return [...problems].sort((a, b) => a.order - b.order).find(problem => !progress[progressKey(problem.slug)]?.attemptedAt) || null;
-}
-
-export function surpriseProblem(problems, filters, progress = {}, random = Math.random, { includeCompleted = false } = {}) {
-  const candidates = filterCatalog(problems, filters, progress).filter(problem => includeCompleted || !progress[progressKey(problem.slug)]?.completedAt);
+export function surpriseProblem(problems, filters, random = Math.random) {
+  const candidates = filterCatalog(problems, filters);
   if (!candidates.length) return null;
   return candidates[Math.min(candidates.length - 1, Math.floor(random() * candidates.length))];
 }
@@ -51,36 +32,14 @@ export class TutorLocalStore {
   constructor({ storage = globalThis.localStorage, now = Date.now } = {}) {
     this.storage = storage;
     this.now = now;
-    this.state = { version: 1, progress: {}, drafts: {} };
+    this.state = { version: 2, drafts: {} };
     try {
       const parsed = JSON.parse(storage.getItem(LOCAL_STATE_KEY));
-      if (parsed?.version === 1 && parsed.progress && parsed.drafts) this.state = parsed;
+      if ([1,2].includes(parsed?.version) && parsed.drafts && typeof parsed.drafts === 'object') {
+        this.state.drafts = parsed.drafts;
+        if (parsed.version === 1 || parsed.progress) this.persist();
+      }
     } catch { /* Private browsing or malformed old state starts cleanly. */ }
-  }
-
-  timestamp() { return new Date(this.now()).toISOString(); }
-  progress() { return this.state.progress; }
-
-  updateProgress(slug, update) {
-    const key = progressKey(slug);
-    this.state.progress[key] = { ...(this.state.progress[key] || {}), ...update };
-    this.persist();
-    return this.state.progress[key];
-  }
-
-  open(slug) { return this.updateProgress(slug, { lastOpenedAt:this.timestamp() }); }
-  attempt(slug) {
-    const current = this.state.progress[progressKey(slug)];
-    return current?.attemptedAt ? current : this.updateProgress(slug, { attemptedAt:this.timestamp() });
-  }
-  complete(slug, completed) {
-    const key = progressKey(slug);
-    const value = { ...(this.state.progress[key] || {}) };
-    if (completed) value.completedAt = this.timestamp();
-    else delete value.completedAt;
-    this.state.progress[key] = value;
-    this.persist();
-    return value;
   }
 
   draft(scope, language) {

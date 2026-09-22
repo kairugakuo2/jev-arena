@@ -2,6 +2,10 @@
   "data": {
     "id": "two-integer-sum",
     "name": "Two Sum",
+    "starterCode": {
+      "python": "class Solution:\n    def twoSum(self, nums: List[int], target: int) -> List[int]:\n        ",
+      "javascript": "class Solution {\n    twoSum(nums, target) {}\n}\n"
+    },
     "description": "Given an array of integers `nums` and an integer target, return two distinct indices whose values add to target.\n\n**Example 1:**\n\n```text\nInput: nums = [3,4,5,6], target = 7\nOutput: [0,1]\n```\n\n**Constraints:**\n* `2 <= nums.length <= 1000`\n* Exactly one answer exists.\n\n<details><summary>Hint</summary>SECRET_HINT</details><script>SECRET_SCRIPT</script>"
   }
 }

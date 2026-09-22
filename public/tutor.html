@@ -25,18 +25,14 @@
         </div>
         <div class="problem-body"><h2 id="problem-title">NeetCode 150 library</h2>
           <div id="library-pane" role="tabpanel" aria-labelledby="library-tab">
-            <button class="roadmap-card" id="continue-problem" type="button" disabled>
-              <span>Continue your roadmap</span><strong id="continue-label">Loading your next problem…</strong>
-            </button>
             <div class="catalog-filters">
               <label class="search-field" for="catalog-search">Search problems<input id="catalog-search" type="search" autocomplete="off" placeholder="Title or pattern"></label>
               <label for="pattern-filter">Pattern<select id="pattern-filter"><option value="all">All patterns</option></select></label>
               <label for="difficulty-filter">Difficulty<select id="difficulty-filter"><option value="all">All levels</option><option>Easy</option><option>Medium</option><option>Hard</option></select></label>
-              <label for="status-filter">Progress<select id="status-filter"><option value="all">All progress</option><option value="unstarted">Unstarted</option><option value="attempted">Attempted</option><option value="completed">Completed</option></select></label>
             </div>
             <div class="catalog-actions"><span id="catalog-count">Loading catalog…</span><button class="quiet-button" id="surprise-problem" type="button" disabled>Surprise me</button></div>
             <div id="catalog-results" class="catalog-results" aria-live="polite"></div>
-            <div id="surprise-empty" class="empty-state" hidden>No unfinished problems match these filters. <button class="text-button" id="include-completed" type="button">Include completed problems</button></div>
+            <div id="surprise-empty" class="empty-state" hidden>No problems match these filters.</div>
             <p class="attribution">Problem statements and reference material are imported from <a href="https://neetcode.io/practice/practice/neetcode150" target="_blank" rel="noreferrer">NeetCode</a> only when you select a problem.</p>
           </div>
           <div id="custom-pane" role="tabpanel" aria-labelledby="custom-tab" hidden>
@@ -48,7 +44,7 @@
             </form>
           </div>
           <div id="problem-ready" hidden>
-            <div class="ready-heading"><span id="problem-source" class="source-badge">Custom</span><label id="complete-label" class="complete-toggle" hidden><input id="mark-complete" type="checkbox"> Mark complete</label></div>
+            <div class="ready-heading"><span id="problem-source" class="source-badge">Custom</span></div>
             <div id="problem-text"></div>
             <a id="source-link" class="source-link" target="_blank" rel="noreferrer" hidden>View on NeetCode</a>
             <button class="text-button" id="change-problem" type="button">Choose another problem</button>
@@ -58,7 +54,8 @@
       </section>
       <section class="editor-panel panel" aria-label="Code workspace">
         <div class="editor-top"><div class="filename-tab"><span id="filename">solution.py</span></div><label class="language-label"><span class="sr-only">Programming language</span><select id="language"><option value="python">Python</option><option value="javascript">JavaScript</option></select></label></div>
-        <div id="editor"></div>
+        <div id="editor" aria-busy="true"></div>
+        <div id="editor-gate" class="editor-gate" role="status">Choose a problem to load its starter code.</div>
         <div class="editor-bottom"><span id="cursor-position">Ln 1, Col 1</span><span>Spaces: 4</span><span id="save-state">Local draft</span></div>
         <p id="editor-help">Tab to indent · Shift+Tab to unindent · Esc, then Tab to leave editor</p>
       </section>
@@ -69,7 +66,7 @@
           <div id="meter" class="meter" role="meter" aria-label="Probability recent edits are hotter" aria-valuemin="0" aria-valuemax="100"><div id="meter-fill"></div><div class="meter-center"></div><div id="meter-marker"></div></div>
         </div>
         <h2 id="direction">Waiting for your first edits</h2><p class="measured" id="measured">No reading yet</p>
-        <div class="live-state" id="live-state" data-state="inactive"><span class="live-dot"></span><span id="live-label">Prepare a problem to begin</span></div>
+        <div class="live-state" id="live-state" data-state="inactive"><span class="live-dot"></span><span id="live-label">Choose a problem to begin</span></div>
         <p id="feedback-error" class="feedback-error" role="status"></p>
         <p class="signal-explanation">Based on your most recent edits, not on how much of the problem you've solved. Readings near 50 mean the change was neutral or unclear.</p>
         <button class="text-button" id="reset-signal" type="button">Reset comparison</button>

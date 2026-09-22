@@ -47,10 +47,11 @@ export function createTutorHandler({ store = new GraphStore(), evaluate = evalua
           (async () => {
             try {
               const imported = await importer.import(problem.slug);
-              const source = { kind:'neetcode', slug:problem.slug, url:imported.url || problem.questionUrl, fetchedAt:imported.fetchedAt, stale:imported.stale };
+              const source = { kind:'neetcode', slug:problem.slug, url:imported.url || problem.questionUrl, fetchedAt:imported.fetchedAt, stale:imported.stale,
+                starterCode:imported.starterCode };
               const problemId = store.idFor(imported.statement, { referenceMaterial:imported.referenceMaterial });
               try {
-                jobs.set(jobId,{ status:'ready', ...store.metadata(await store.get(problemId)) });
+                jobs.set(jobId,{ status:'ready', ...store.metadata(await store.get(problemId)), source });
               } catch {
                 const metadata = await store.prepare(imported.statement, status => jobs.set(jobId,{ status:status === 'reviewing' ? 'reviewing_reference' : 'mapping_approaches' }),
                   { referenceMaterial:imported.referenceMaterial, source });

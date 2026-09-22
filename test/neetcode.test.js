@@ -69,6 +69,8 @@ test('imports a bounded statement and hidden references from local fixtures', as
   assert.equal(source.coverage.python, true);
   assert.equal(source.coverage.javascript, true);
   assert.match(source.contentHash, /^[a-f0-9]{64}$/);
+  assert.match(source.starterCode.python, /class Solution:/);
+  assert.match(source.starterCode.javascript, /class Solution/);
   assert.equal((await stat(join(cacheDir, 'two-integer-sum.json'))).mode & 0o777, 0o600);
 });
 
@@ -102,6 +104,13 @@ test('rejects unknown slugs, foreign redirects, wrong content types, and oversiz
     [urls.question]: () => response('{"data":{"description":12}}', 'application/json'),
   }) });
   await assert.rejects(malformed.import(item.slug), /metadata|description/);
+
+  const missingStarter = JSON.parse(await fixture('question.json'));
+  delete missingStarter.data.starterCode.python;
+  const invalidStarter = new NeetCodeImporter({ catalog:[item], cacheDir, fetchImpl:await successfulFetch({
+    [urls.question]: () => response(JSON.stringify(missingStarter), 'application/json'),
+  }) });
+  await assert.rejects(invalidStarter.import(item.slug), /starter code/);
 });
 
 test('aborts a resource that exceeds its timeout', async () => {

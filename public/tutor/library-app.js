@@ -1,6 +1,7 @@
 import { createCodeEditor } from './editor.js';
 import { TutorScheduler, smoothPosition, MAX_CODE_BYTES, utf8Bytes } from './scheduler.js';
-import { TutorLocalStore, filterCatalog, groupCatalog, continueProblem, surpriseProblem, problemStatus } from './library.js';
+import { TutorLocalStore, filterCatalog, groupCatalog, surpriseProblem } from './library.js';
+import { starterFor, readingLevel } from './reading.js';
 
 const $ = id => document.getElementById(id);
 const starter = { python:'# Write your solution here.\n', javascript:'// Write your solution here.\n' };
@@ -63,11 +64,11 @@ function animate(now) {
 function moveMeter() { if (!frame && !document.hidden) frame = requestAnimationFrame(animate); }
 function clearMeter() {
   cancelAnimationFrame(frame); frame = 0; lastFrame = null; target = null; displayed = 50;
-  $('heat-meter').classList.add('unmeasured'); $('direction').textContent = 'Waiting for your first edits';
+  $('heat-meter').classList.add('unmeasured'); $('direction').textContent = problem ? 'Waiting for your first edits' : 'Choose a problem to begin';
   $('measured').textContent = 'No reading yet'; $('meter').removeAttribute('aria-valuenow'); paint();
 }
 
-const statusLabels = { inactive:'Prepare a problem to begin', ready:'Ready for your edits', updating:'Updating', analyzing:'Reading your edits', watching:'Following your code', delayed:'Reading delayed', unavailable:'Reading unavailable', too_large:'Code exceeds 64 KiB' };
+const statusLabels = { inactive:'Choose a problem to begin', ready:'Ready for your edits', updating:'Updating', analyzing:'Reading your edits', watching:'Following your code', delayed:'Reading delayed', unavailable:'Reading unavailable', too_large:'Code exceeds 64 KiB' };
 const scheduler = new TutorScheduler({
   request: body => api('/api/tutor/evaluate',body),
   onStatus: info => {
@@ -77,7 +78,7 @@ const scheduler = new TutorScheduler({
   },
   onReading: result => {
     target = result.probabilities.hotter * 100; $('heat-meter').classList.remove('unmeasured');
-    $('direction').textContent = target > 60 ? 'Getting hotter' : target < 40 ? 'Getting colder' : 'Neutral or uncertain';
+    $('direction').textContent = readingLevel(target);
     $('meter').setAttribute('aria-valuenow',String(Math.round(target))); $('meter').setAttribute('aria-valuetext',`${Math.round(target)} percent hotter probability for recent edits`);
     $('announcement').textContent = `${$('direction').textContent}. ${Math.round(target)} percent hotter probability.`;
     $('measured').textContent = `Updated ${new Date().toLocaleTimeString([], { hour:'2-digit',minute:'2-digit',second:'2-digit' })}`;
@@ -93,17 +94,24 @@ const scheduler = new TutorScheduler({
 function draftScope() { return activeCatalogProblem ? `neetcode:${activeCatalogProblem.slug}` : 'custom'; }
 function saveDraft() { localState.saveDraft(draftScope(),language,editor.code()); $('save-state').textContent = 'Draft saved locally'; }
 function setEditorCode(code) {
-  restoring = true; editor.view.dispatch({ changes:{ from:0,to:editor.view.state.doc.length,insert:code } }); restoring = false;
+  restoring = true; editor.view.dispatch({ changes:{ from:0,to:editor.view.state.doc.length,insert:code }, selection:{ anchor:code.length } }); restoring = false;
+}
+function setEditorReady(ready, message = 'Choose a problem to load its starter code.') {
+  editor.setEditable(ready);
+  $('editor').setAttribute('aria-busy',String(!ready));
+  $('editor-gate').hidden = ready;
+  $('editor-gate').textContent = message;
+  $('language').disabled = !ready;
 }
 function restoreDraft() {
   const code = localState.draft(draftScope(),language);
-  setEditorCode(typeof code === 'string' && utf8Bytes(code) <= MAX_CODE_BYTES ? code : starter[language]);
+  const initial = activeCatalogProblem ? starterFor(problem?.source?.starterCode,language) : starter[language];
+  setEditorCode(typeof code === 'string' && utf8Bytes(code) <= MAX_CODE_BYTES ? code : initial || starter[language]);
 }
 
 const editor = createCodeEditor({ parent:$('editor'), nonce:document.querySelector('meta[name="style-nonce"]').content, doc:starter.python,
   onChange:(code,changes) => {
     if (restoring) return;
-    if (activeCatalogProblem) { localState.attempt(activeCatalogProblem.slug); renderCatalog(); }
     scheduler.setPaused(document.hidden || composing); scheduler.edit(code,changes); saveDraft();
   },
   onSelection:({line,column}) => { $('cursor-position').textContent = `Ln ${line}, Col ${column}`; },
@@ -122,11 +130,11 @@ function showEntry(mode) {
   $('library-pane').hidden = !library; $('custom-pane').hidden = library;
   $('problem-title').textContent = library ? 'NeetCode 150 library' : 'Custom problem';
 }
-function filters() { return { query:$('catalog-search').value, pattern:$('pattern-filter').value, difficulty:$('difficulty-filter').value, status:$('status-filter').value }; }
+function filters() { return { query:$('catalog-search').value, pattern:$('pattern-filter').value, difficulty:$('difficulty-filter').value }; }
 
 function renderCatalog() {
   if (!catalog.length) return;
-  const progress = localState.progress(), filtered = filterCatalog(catalog,filters(),progress);
+  const filtered = filterCatalog(catalog,filters());
   $('catalog-count').textContent = `${filtered.length} of ${catalog.length} problems`; $('catalog-results').replaceChildren();
   for (const group of groupCatalog(filtered)) {
     const section = document.createElement('section'); section.className = 'catalog-group';
@@ -135,17 +143,14 @@ function renderCatalog() {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'problem-choice';
       const title = document.createElement('span'); title.className = 'problem-choice-title'; title.textContent = `${entry.order}. ${entry.title}`;
       const meta = document.createElement('span'); meta.className = 'problem-meta';
-      const status = problemStatus(entry,progress), mark = document.createElement('span'); mark.className = `status-mark ${status}`; mark.setAttribute('aria-hidden','true');
       const difficulty = document.createElement('span'); difficulty.className = 'difficulty'; difficulty.textContent = entry.difficulty;
-      meta.append(mark,difficulty); button.append(title,meta); button.setAttribute('aria-label',`${entry.title}, ${entry.difficulty}, ${status}`);
+      meta.append(difficulty); button.append(title,meta); button.setAttribute('aria-label',`${entry.title}, ${entry.difficulty}`);
       button.addEventListener('click',() => selectCatalogProblem(entry)); section.append(button);
     }
     $('catalog-results').append(section);
   }
   if (!filtered.length) { const empty = document.createElement('p'); empty.className = 'empty-state'; empty.textContent = 'No problems match these filters.'; $('catalog-results').append(empty); }
-  const next = continueProblem(catalog,progress);
-  $('continue-problem').disabled = !next; $('continue-label').textContent = next ? `${next.order}. ${next.title}` : 'Roadmap complete';
-  $('continue-problem').onclick = next ? () => selectCatalogProblem(next) : null; $('surprise-problem').disabled = !filtered.length;
+  $('surprise-problem').disabled = !filtered.length;
 }
 
 function activate(metadata) {
@@ -153,13 +158,20 @@ function activate(metadata) {
   $('problem-title').textContent = metadata.title || activeCatalogProblem?.title || metadata.statement.split('\n')[0]; $('problem-text').textContent = metadata.statement;
   document.querySelector('.entry-tabs').hidden = true; $('library-pane').hidden = true; $('custom-pane').hidden = true; $('problem-ready').hidden = false;
   const imported = metadata.source?.kind === 'neetcode';
-  $('problem-source').textContent = imported ? `NeetCode · ${activeCatalogProblem?.pattern || '150'}` : 'Custom'; $('complete-label').hidden = !imported;
-  $('mark-complete').checked = imported && Boolean(localState.progress()[`neetcode:${metadata.source.slug}`]?.completedAt);
+  $('problem-source').textContent = imported ? `NeetCode · ${activeCatalogProblem?.pattern || '150'}` : 'Custom';
   $('source-link').hidden = !imported; if (imported) $('source-link').href = metadata.source.url;
-  setProblemStatus(metadata.source?.stale ? 'Ready from private cache; source refresh was unavailable.' : 'Reference ready.'); newSession(); saveDraft();
+  for (const option of $('language').options) option.disabled = imported && !metadata.source.starterCode?.[option.value];
+  if (imported && !metadata.source.starterCode?.[language]) {
+    language = metadata.source.starterCode?.python ? 'python' : 'javascript';
+    $('language').value = language; editor.setLanguage(language); $('filename').textContent = language === 'python' ? 'solution.py' : 'solution.js';
+  }
+  restoreDraft();
+  setEditorReady(true);
+  setProblemStatus(metadata.source?.stale ? 'Ready from private cache; source refresh was unavailable.' : 'Reference ready.'); newSession();
 }
 function preparationFailed(error, source) {
   preparing = false; preparingId = null; $('prepare').disabled = false; $('prepare').textContent = 'Try preparing again'; setProblemStatus(error.message || 'Preparation failed.','alert');
+  setEditorReady(false,'Preparation failed. Try again or choose another problem.');
   if (source?.url) {
     const link = document.createElement('a'); link.href = source.url; link.target = '_blank'; link.rel = 'noreferrer'; link.textContent = 'Open the attributed problem on NeetCode';
     $('problem-status').append(document.createElement('br'),link);
@@ -185,35 +197,34 @@ async function beginPreparation(body) {
   } catch (error) { preparationFailed(error); }
 }
 function selectCatalogProblem(entry) {
-  clearTimeout(pollTimer); saveDraft(); activeCatalogProblem = entry; problem = null;
-  localState.open(entry.slug); restoreDraft(); newSession(); renderCatalog(); $('problem-title').textContent = entry.title;
+  if (preparing) return;
+  clearTimeout(pollTimer); if (problem) saveDraft(); activeCatalogProblem = entry; problem = null;
+  setEditorCode(starter[language]); setEditorReady(false,'Loading this problem and its starter code…'); newSession(); renderCatalog(); $('problem-title').textContent = entry.title;
   beginPreparation({ source:'neetcode', slug:entry.slug });
 }
 
 $('problem-input').value = safeGet('jev-tutor-custom-statement') || customSample;
 $('problem-form').addEventListener('submit',event => {
-  event.preventDefault(); saveDraft(); activeCatalogProblem = null; restoreDraft();
+  event.preventDefault(); if (problem) saveDraft(); activeCatalogProblem = null; setEditorReady(false,'Preparing your custom problem…');
   safeSet('jev-tutor-custom-statement',$('problem-input').value); beginPreparation({ statement:$('problem-input').value });
 });
 $('library-tab').addEventListener('click',() => showEntry('library')); $('custom-tab').addEventListener('click',() => showEntry('custom'));
 $('change-problem').addEventListener('click',() => {
-  problem = null; newSession(); document.querySelector('.entry-tabs').hidden = false; $('problem-ready').hidden = true;
+  saveDraft(); problem = null; setEditorReady(false); newSession(); document.querySelector('.entry-tabs').hidden = false; $('problem-ready').hidden = true;
   showEntry(activeCatalogProblem ? 'library' : 'custom'); setProblemStatus(activeCatalogProblem ? 'Choose a NeetCode 150 problem.' : 'Paste the full statement and constraints.');
 });
-$('mark-complete').addEventListener('change',() => { if (activeCatalogProblem) { localState.complete(activeCatalogProblem.slug,$('mark-complete').checked); renderCatalog(); } });
 $('language').addEventListener('change',() => {
   saveDraft(); language = $('language').value; editor.setLanguage(language); $('filename').textContent = language === 'python' ? 'solution.py' : 'solution.js'; restoreDraft(); newSession();
 });
-for (const id of ['catalog-search','pattern-filter','difficulty-filter','status-filter']) $(id).addEventListener(id === 'catalog-search' ? 'input' : 'change',renderCatalog);
-$('surprise-problem').addEventListener('click',() => { const choice = surpriseProblem(catalog,filters(),localState.progress()); if (choice) selectCatalogProblem(choice); else $('surprise-empty').hidden = false; });
-$('include-completed').addEventListener('click',() => { const choice = surpriseProblem(catalog,filters(),localState.progress(),Math.random,{ includeCompleted:true }); $('surprise-empty').hidden = true; if (choice) selectCatalogProblem(choice); });
+for (const id of ['catalog-search','pattern-filter','difficulty-filter']) $(id).addEventListener(id === 'catalog-search' ? 'input' : 'change',renderCatalog);
+$('surprise-problem').addEventListener('click',() => { const choice = surpriseProblem(catalog,filters()); if (choice) selectCatalogProblem(choice); else $('surprise-empty').hidden = false; });
 $('reset-signal').addEventListener('click',newSession);
 editor.view.contentDOM.addEventListener('compositionstart',() => { composing = true; scheduler.setPaused(true); });
 editor.view.contentDOM.addEventListener('compositionend',() => { composing = false; scheduler.setPaused(document.hidden); });
 document.addEventListener('visibilitychange',() => { scheduler.setPaused(document.hidden || composing); if (document.hidden) { cancelAnimationFrame(frame); frame = 0; lastFrame = null; } else moveMeter(); });
 reduced.addEventListener('change',moveMeter); window.addEventListener('pagehide',() => { scheduler.dispose(); clearTimeout(pollTimer); cancelAnimationFrame(frame); });
 
-newSession();
+setEditorReady(false); newSession();
 api('/api/tutor/catalog').then(result => {
   catalog = result.problems;
   for (const pattern of [...new Set(catalog.map(entry => entry.pattern))]) { const option = document.createElement('option'); option.value = option.textContent = pattern; $('pattern-filter').append(option); }

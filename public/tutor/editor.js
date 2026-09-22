@@ -10,8 +10,10 @@ import { oneDark } from '@codemirror/theme-one-dark';
 const languageExtensions = { python, javascript };
 export function createCodeEditor({ parent, language = 'python', doc = '', nonce = '', onChange, onSelection = () => {} }) {
   const languageSlot = new Compartment();
+  const editSlot = new Compartment();
   const view = new EditorView({ parent, state: EditorState.create({ doc, extensions: [
     basicSetup, oneDark, languageSlot.of(languageExtensions[language]()),
+    editSlot.of([EditorState.readOnly.of(true), EditorView.editable.of(false)]),
     indentUnit.of('    '), EditorState.tabSize.of(4), keymap.of([indentWithTab]),
     EditorView.cspNonce.of(nonce),
     EditorView.contentAttributes.of({ 'aria-label': 'Solution code editor', 'aria-describedby': 'editor-help', spellcheck: 'false' }),
@@ -40,6 +42,7 @@ export function createCodeEditor({ parent, language = 'python', doc = '', nonce 
   return {
     view,
     setLanguage(next) { view.dispatch({ effects: languageSlot.reconfigure(languageExtensions[next]()) }); },
+    setEditable(enabled) { view.dispatch({ effects: editSlot.reconfigure([EditorState.readOnly.of(!enabled), EditorView.editable.of(enabled)]) }); },
     code: () => view.state.doc.toString(),
   };
 }

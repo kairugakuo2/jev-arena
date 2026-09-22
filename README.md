@@ -10,7 +10,7 @@ Both run on [`typesafe-ai/jev`](https://vercel.com/kb/guide/typesafe-jev-and-ai-
 
 ### Coding Navigator (`/tutor`)
 
-Choose from the built-in NeetCode 150 library or paste a custom problem, then write a solution in Python or JavaScript. Search and filter the library by pattern, difficulty and local progress; **Continue your roadmap** resumes your latest unfinished attempt, while **Surprise me** picks an unfinished problem inside your active filters. As you type, a meter moves toward **hotter** when your edits bring you closer to a working algorithm and toward **colder** when they lead you away. It never shows you the answer, and your code is never run.
+Choose from the built-in NeetCode 150 library or paste a custom problem, then write a solution in Python or JavaScript. Search and filter the library by pattern and difficulty; **Surprise me** picks a problem inside your active filters. Imported problems open with NeetCode's starter class, method signature and parameters already in the editor. As you type, Jev rates the direction of recent edits from **much colder** through **much hotter**. It never shows you the answer, and your code is never run.
 
 Behind the scenes, a larger model first maps the problem's solution space: brute-force, acceptable and optimal approaches, the partial steps between them, and common dead ends. Jev then compares each batch of your edits against that map. See [How the Navigator works](#how-the-navigator-works).
 
@@ -57,9 +57,9 @@ If `npm start` fails with `node: bad option: --env-file-if-exists`, your Node.js
 
 1. Open **Coding Navigator** and choose a problem from the NeetCode 150 library. The **Custom** tab still accepts a full problem statement you paste yourself.
 2. The first library open imports the source, then builds its solution map. Preparation shows four stages: importing source, mapping approaches, reviewing reference and ready. Later opens use private caches.
-3. Start typing a solution. The meter updates a moment after each pause. A nested-loop brute force should read strongly hotter. Swapping in a hash map should read hotter again.
+3. When preparation is ready, the editor unlocks with the selected problem's starter code. Type inside the method. The meter updates a moment after each pause. A nested-loop brute force should read strongly hotter. Swapping in a hash map should read hotter again.
 
-Python and JavaScript drafts are stored separately for each library problem. The 20 most recently used problem drafts share a 2 MiB local browser budget. An attempt starts with your first real edit; completion changes only when you use **Mark complete**. A hotter reading never marks a problem complete.
+Python and JavaScript drafts are stored separately for each library problem. The 20 most recently used problem drafts share a 2 MiB local browser budget. This early version does not track attempts or completion. Older local progress is discarded; drafts remain available.
 
 ## Configuration
 
@@ -73,7 +73,7 @@ All settings live in `.env`. The server reads it at startup, so restart after ch
 
 ## How the Navigator works
 
-1. **Import and map the problem (once).** For a library problem, the server imports the visible statement plus hidden NeetCode article prose and complete Python/JavaScript references. The browser receives only the statement and attribution. The mapmaker writes a structured description of the solution space, and a second pass reviews it for real errors. Custom problems use only the pasted statement. Approved maps are cached on disk.
+1. **Import and map the problem (once).** For a library problem, the server imports the visible statement and starter code plus hidden NeetCode article prose and complete Python/JavaScript references. The browser receives the statement, starter code and attribution, never the hidden solutions. The mapmaker writes a structured description of the solution space, and a second pass reviews it for real errors. Custom problems use only the pasted statement. Approved maps are cached on disk.
 2. **Sample your code.** The browser sends a snapshot about 300 ms after you stop typing, or at most every second while you keep typing. Only one request is in flight at a time, and results that arrive after newer edits are dropped.
 3. **Judge the direction.** Jev gets the map, your code before and after your latest edits, and a short edit history. It returns `{ hotter, colder }` probabilities, usually within 300–800 ms.
 4. **Move the meter.** The needle eases toward each new reading instead of jumping.
@@ -86,7 +86,7 @@ The reading describes the direction of your recent edits. It isn't a grade, and 
 - Imported sources are validated, hashed and atomically cached under `.cache/tutor/sources/` with private file permissions. Entries older than seven days are revalidated. If that refresh fails, a validated stale entry remains usable.
 - Requests are restricted to HTTPS on `neetcode.io` and the official `raw.githubusercontent.com/neetcode-gh/leetcode` repository, with short timeouts, redirect limits, content-type checks and bounded streaming reads.
 - The current NeetCode site renders problem pages in the browser, so the importer uses the same public problem-metadata endpoint as NeetCode's frontend for the visible description. It reads article prose and reference files from the official repository. Upstream HTML, API or repository layout changes may require a parser update.
-- Imported text is treated as untrusted model input. Hidden references, raw source records and solution graphs are never returned by browser APIs.
+- Imported text is treated as untrusted model input. Visible starter code is returned as text for the editor; hidden references, raw source records and solution graphs are never returned by browser APIs.
 
 The official [NeetCode solution repository](https://github.com/neetcode-gh/leetcode) is [MIT-licensed](https://github.com/neetcode-gh/leetcode/blob/main/LICENSE). Jev Lab attributes imported problems to NeetCode and keeps the fetched text local. It does not use LeetCode's undocumented GraphQL endpoint or scrape LeetCode pages; [LeetCode's terms prohibit crawling and scraping](https://leetcode.com/terms/).
 

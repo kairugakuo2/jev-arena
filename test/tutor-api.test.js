@@ -68,7 +68,8 @@ test('catalog returns safe metadata only', async () => {
 });
 
 test('NeetCode preparation imports privately, reports stages, and returns sanitized source metadata', async () => {
-  const safeSource = { kind:'neetcode', slug:'two-integer-sum', url:'https://neetcode.io/problems/two-integer-sum', fetchedAt:'2026-09-22T00:00:00.000Z', stale:false };
+  const safeSource = { kind:'neetcode', slug:'two-integer-sum', url:'https://neetcode.io/problems/two-integer-sum', fetchedAt:'2026-09-22T00:00:00.000Z', stale:false,
+    starterCode:{ python:'class Solution:\n    def twoSum(self, nums, target):\n        ', javascript:'class Solution { twoSum(nums, target) {} }' } };
   const finalId = 'b'.repeat(64);
   const stages = [];
   const store = {
@@ -95,6 +96,7 @@ test('NeetCode preparation imports privately, reports stages, and returns saniti
   assert.equal(ready.body.status, 'ready');
   assert.equal(ready.body.problemId, finalId);
   assert.deepEqual(ready.body.source, safeSource);
+  assert.match(ready.body.source.starterCode.python, /def twoSum/);
   assert.equal(ready.body.graph, undefined);
   assert.equal(ready.body.referenceMaterial, undefined);
   assert.doesNotMatch(JSON.stringify(ready.body), /PRIVATE/);
