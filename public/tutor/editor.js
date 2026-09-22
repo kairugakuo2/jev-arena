@@ -1,5 +1,5 @@
 import { basicSetup } from 'codemirror';
-import { EditorState, Compartment } from '@codemirror/state';
+import { EditorState, Compartment, Prec } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { indentUnit } from '@codemirror/language';
 import { indentWithTab } from '@codemirror/commands';
@@ -17,16 +17,19 @@ export function createCodeEditor({ parent, language = 'python', doc = '', nonce 
     indentUnit.of('    '), EditorState.tabSize.of(4), keymap.of([indentWithTab]),
     EditorView.cspNonce.of(nonce),
     EditorView.contentAttributes.of({ 'aria-label': 'Solution code editor', 'aria-describedby': 'editor-help', spellcheck: 'false' }),
-    EditorView.theme({
-      '&': { height: '100%', fontSize: '14px', backgroundColor: '#151a18' },
-      '.cm-scroller': { fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace', lineHeight: '1.75', overflow: 'auto' },
-      '.cm-content': { padding: '18px 0', caretColor: '#d5f890' },
+    // Prec.highest so these colors win over oneDark's own background rules.
+    Prec.highest(EditorView.theme({
+      '&': { height: '100%', fontSize: '14px', backgroundColor: '#12131f' },
+      '.cm-scroller': { fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace', lineHeight: '1.75', overflow: 'auto' },
+      '.cm-content': { padding: '18px 0', caretColor: '#a5b4fc' },
+      '.cm-cursor, .cm-dropCursor': { borderLeftColor: '#a5b4fc', borderLeftWidth: '2px' },
       '.cm-line': { padding: '0 20px 0 12px' },
-      '.cm-gutters': { backgroundColor: '#151a18', color: '#68756d', border: 'none' },
+      '.cm-gutters': { backgroundColor: '#12131f', color: '#8083a8', border: 'none' },
       '.cm-gutterElement': { paddingLeft: '16px' },
-      '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: '#202721' },
+      '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: '#1b1d2e' },
+      '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': { backgroundColor: '#35397a' },
       '&.cm-focused': { outline: 'none' },
-    }),
+    }, { dark: true })),
     EditorView.updateListener.of(update => {
       if (update.docChanged) {
         const changes = [];

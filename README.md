@@ -4,7 +4,7 @@
 
 Both run on [`typesafe-ai/jev`](https://vercel.com/kb/guide/typesafe-jev-and-ai-sdk), a model on the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) that answers multiple-choice questions with a probability for each option. Jev Lab puts those probabilities on screen so you can see what the model chose and how confident it was. Everything runs on your machine through one small Node server, and your API key never reaches the browser.
 
-![Coding Navigator: a brute-force Two Sum solution in the editor, with the meter reading 99% hotter](docs/images/navigator.png)
+![Coding Navigator: a hash-map Two Sum solution in the dark editor, with the meter reading 100% and "Much hotter"](public/images/navigator.png)
 
 ## Projects
 
@@ -18,7 +18,7 @@ Behind the scenes, a larger model first maps the problem's solution space: brute
 
 A real-time 2D fight. About twice a second Jev reads both fighters' position, speed, stamina and cooldowns, then picks one of 12 moves. A side panel shows the probability it gave each one. A built-in rule-based opponent works without an API key.
 
-![AI Gladiator: two fighters in the arena, with the decision panel listing a probability for each of the 12 moves](docs/images/arena.png)
+![AI Gladiator: two fighters in the arena, with the decision panel listing a probability for each of the 12 moves](public/images/arena.png)
 
 *Screenshot shows the offline rule-based opponent. In Jev mode the panel shows the model's probabilities.*
 

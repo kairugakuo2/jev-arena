@@ -8,6 +8,7 @@ try {
     ? "Gateway key configured"
     : "No Gateway key (rule-based Arena still works)";
 } catch {
+  status.classList.add("offline");
   status.querySelector("span:last-child").textContent =
     "Local server unavailable";
 }

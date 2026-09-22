@@ -8,54 +8,63 @@
       content="A real-time 2D fight against Jev, with each decision's probabilities shown live."
     />
     <title>AI Gladiator · Jev Lab</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css" />
     <link rel="stylesheet" href="/arena/styles.css" />
     <script type="module" src="/arena/app.js"></script>
   </head>
   <body>
-    <div class="shell">
-      <header class="topbar">
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <header class="site-nav">
+      <div class="site-nav-inner">
         <a class="brand" href="/" aria-label="Back to Jev Lab"
-          ><span class="brand-icon" aria-hidden="true">J</span> Jev Lab</a
+          ><span class="brand-mark" aria-hidden="true">J</span
+          ><span class="brand-name">Jev Lab</span></a
         >
-        <span class="lab-label">AI Gladiator</span>
-        <a class="guide-link" href="#field-guide">How to play</a>
-      </header>
-      <main>
+        <nav aria-label="Projects">
+          <ul class="nav-links">
+            <li><a href="/tutor">Navigator</a></li>
+            <li><a href="/arena" aria-current="page">Arena</a></li>
+          </ul>
+        </nav>
+        <div class="nav-end">
+          <span id="connection" class="status-pill" role="status">Checking Gateway…</span>
+        </div>
+      </div>
+    </header>
+    <div class="shell">
+      <main id="main-content">
         <section class="intro">
           <div>
             <h1>AI Gladiator</h1>
             <p class="intro-copy">
               Fight Jev in real time. The panel on the right shows the
-              probability Jev gave each move.
+              probability it gave each of its 12 moves.
+              <a href="#field-guide">How to play</a>
             </p>
           </div>
-          
-        </section>
-        <div class="toolbar">
-          <div class="modes" role="group" aria-label="Opponent mode">
-            <button id="jev-mode" aria-pressed="true">
-              Jev AI <span>MODEL</span></button
-            ><button id="rule-mode" aria-pressed="false">
-              Rule-Based AI <span>LOGIC</span>
-            </button>
+          <div class="toolbar">
+            <div class="modes" role="group" aria-label="Opponent">
+              <button id="jev-mode" aria-pressed="true">Jev</button
+              ><button id="rule-mode" aria-pressed="false">Rule-based</button>
+            </div>
+            <button id="reset" class="btn btn-secondary">New battle</button
+            ><button id="play" class="btn btn-primary play-button">Play</button>
           </div>
-          <span id="connection" class="connection">Checking Gateway…</span>
-          <button id="play" class="quiet-button">▶ Play</button
-          ><button id="reset" class="quiet-button">↻ New battle</button>
-        </div>
+        </section>
         <div class="workspace">
           <section class="arena-panel panel" aria-label="Battle arena">
             <div class="panel-heading">
-              <span class="eyebrow">THE ARENA</span
+              <span class="panel-title">Arena</span
               ><span class="round"
-                >TIME <b id="round">0.0s</b><span> / 180s</span></span
+                >Time <b id="round">0.0s</b><span> / 180s</span></span
               >
             </div>
             <div class="fighters">
               <article class="fighter-card player-card">
                 <div class="fighter-label">
                   <h2>You</h2>
-                  <span>HUMAN</span>
+                  <span>Human</span>
                 </div>
                 <div class="stat-label">
                   <label for="player-health">Health</label
@@ -73,15 +82,15 @@
                   value="100"
                 ></progress>
                 <div class="fighter-foot">
-                  <span id="player-position">Lane 2 · Grounded</span
-                  ><span id="player-guard">Unguarded</span>
+                  <span id="player-position">x 2.0 · Grounded</span
+                  ><span id="player-guard">Attack ready</span>
                 </div>
               </article>
-              <span class="versus">VS</span>
+              <span class="versus" aria-hidden="true">vs</span>
               <article class="fighter-card ai-card">
                 <div class="fighter-label">
                   <h2 id="opponent-name">Jev</h2>
-                  <span id="opponent-type">AI MODEL</span>
+                  <span id="opponent-type">AI model</span>
                 </div>
                 <div class="stat-label">
                   <label for="ai-health">Health</label
@@ -100,21 +109,20 @@
                 ></progress>
                 <div class="fighter-foot">
                   <span id="ai-position">x 8.0 · Grounded</span
-                  ><span id="ai-guard">Unguarded</span>
+                  ><span id="ai-guard">Attack ready</span>
                 </div>
               </article>
             </div>
             <div class="stage" data-distance="2" id="stage" aria-hidden="true">
-              <div class="stage-grid"></div>
-              <div class="orbit orbit-one"></div>
-              <div class="orbit orbit-two"></div>
+              <div class="stage-sky"></div>
+              <div class="stage-floor"></div>
               <div class="avatar avatar-player">
                 <div class="fighter-shadow"></div>
                 <div class="helmet"><i></i></div>
                 <div class="body-shape"></div>
                 <div class="shield"></div>
                 <div class="sword"></div>
-                <span>PLAYER 01</span>
+                <span>You</span>
               </div>
               <div class="avatar avatar-ai">
                 <div class="fighter-shadow"></div>
@@ -122,33 +130,35 @@
                 <div class="body-shape"></div>
                 <div class="shield"></div>
                 <div class="sword"></div>
-                <span>GLADIATOR 02</span>
+                <span>Opponent</span>
               </div>
-              <span class="stage-center">+</span>
             </div>
-            <div class="distance-indicator">
-              <span>DISTANCE</span>
-
-              <strong id="distance">2 · Medium range</strong>
-            </div>
-            <div class="turn-banner" role="status" id="turn-status">
-              Paused. Press Play to start.
+            <div class="stage-bar">
+              <div class="distance-indicator">
+                <span>Distance</span>
+                <strong id="distance">6.0 units · Out of reach</strong>
+              </div>
+              <div class="turn-banner" role="status" id="turn-status">
+                Paused. Press Play to start.
+              </div>
             </div>
             <div class="controls">
               <div class="controls-label">
-                <span class="eyebrow">YOUR MOVE</span
-                ><span>Live keyboard controls</span>
+                <span class="panel-title">Controls</span
+                ><span>Hold to move or fight</span>
               </div>
-              <div
-                class="movements"
-                id="movements"
-                role="group"
-                aria-label="Hold to move"
-              ></div>
+              <div class="control-groups">
+                <div
+                  class="movements"
+                  id="movements"
+                  role="group"
+                  aria-label="Movement"
+                ></div>
+                <div class="actions" id="actions" role="group" aria-label="Combat"></div>
+              </div>
               <p id="move-preview" class="hint">
-                A/D move · Space jumps · J attacks · K defends.
+                Hold A/D or the arrow keys to run. Space jumps. Hold J to attack, K or Shift to guard.
               </p>
-              <div class="actions" id="actions"></div>
               <p class="hint" id="move-hint">
                 Hold the controls to move and fight. No turns.
               </p>
@@ -156,101 +166,110 @@
           </section>
           <aside class="inspector panel" aria-label="AI decision inspector">
             <div class="panel-heading">
-              <span class="eyebrow">DECISION INSPECTOR</span
-              ><span class="live-tag">LIVE</span>
+              <span class="panel-title">Decision</span
+              ><span class="live-tag">Live</span>
             </div>
             <h2 id="decision-title">Inside the decision</h2>
             <p class="inspector-copy" id="decision-note">
               Jev evaluates the state and assigns a probability to each action.
-              Make a move to see it work.
+              Press Play to see it work.
             </p>
             <div class="decision-meta">
               <span id="decision-source">typesafe-ai/jev</span
-              ><span id="decision-round">AWAITING TURN</span>
+              ><span id="decision-round">Waiting for Play</span>
             </div>
-            <div class="probabilities" id="probabilities"></div>
             <div class="chosen">
-              <span>CHOSEN ACTION</span
-              ><strong id="chosen-action">Waiting for your move</strong
+              <span>Chosen move</span
+              ><strong id="chosen-action">Waiting for Play</strong
               ><small id="decision-timing">State → evaluation → action</small>
             </div>
+            <div class="probabilities" id="probabilities"></div>
             <div id="request-error" class="error" role="alert" hidden></div>
-            <button id="retry" class="retry" hidden>
-              Retry current state ↻
+            <button id="retry" class="btn btn-secondary retry" hidden>
+              Retry current state
             </button>
             <p class="inspector-foot" id="probability-explainer">
-              Action probabilities, not a chain of thought or your chance of
+              Move probabilities, not a chain of thought or your chance of
               winning.
             </p>
             <details class="debug">
-              <summary>Inspect exact state <span>{ }</span></summary>
+              <summary>Exact state sent to Jev</summary>
               <p id="debug-caption">
                 The latest state submitted to the decision engine.
               </p>
               <pre id="debug-state">No AI decision yet.</pre>
             </details>
             <details class="debug">
-              <summary>Inspect Jev question</summary>
+              <summary>Question sent to Jev</summary>
               <pre id="debug-question">
 Available after a successful Jev request.</pre
               >
             </details>
           </aside>
         </div>
-        <section class="battle-log panel">
-          <div class="panel-heading">
-            <span class="eyebrow">BATTLE LOG</span
-            ><span id="log-count">0 ACTIONS</span>
-          </div>
-          <ol id="battle-log" aria-live="polite" aria-relevant="additions">
-            <li class="log-empty">
-              The arena is ready. Your first move starts the battle.
-            </li>
-          </ol>
-        </section>
-        <details class="field-guide" id="field-guide">
-          <summary>
-            <span>How to play</span
-            ><span>Rules and controls +</span>
-          </summary>
-          <div class="guide-content">
-            <p>
-              <strong>Move whenever</strong>Hold A/D or left/right arrows to
-              run; Space, W or up arrow jumps. You can run while airborne and
-              pass through the opponent.
-            </p>
-            <p>
-              <strong>Attack</strong>Hold J to swing every 0.65 seconds. Each
-              swing costs 18 stamina. Reach is 1.25 horizontal and 0.8 vertical
-              units; jumping can evade a swing.
-            </p>
-            <p>
-              <strong>Guard</strong>Hold K or Shift. Guard halves movement
-              speed, drains 8 stamina/second, reduces damage to 4 and counters
-              for 6 if you have 8 stamina.
-            </p>
-            <p>
-              <strong>Recover</strong>Release guard to recover 12
-              stamina/second. Jumping costs 12 stamina. Release and press jump
-              again after landing.
-            </p>
-            <p>
-              <strong>Jev's clock</strong>About two snapshots per second, one
-              request at a time. AI controls expire after 0.7 seconds. Responses
-              older than 1.2 seconds are ignored; physics always uses current
-              positions.
-            </p>
-            <p>
-              <strong>Pause &amp; touch</strong>Press Play to start, P or Esc to
-              pause. Switching away pauses automatically. Hold the on-screen
-              buttons on touch devices. No requests are made while paused.
-            </p>
-          </div>
-        </details>
+        <div class="lower">
+          <section class="battle-log panel" aria-labelledby="log-title">
+            <div class="panel-heading">
+              <h2 id="log-title" class="panel-title">Battle log</h2
+              ><span id="log-count">0 events</span>
+            </div>
+            <ol id="battle-log" aria-live="polite" aria-relevant="additions">
+              <li class="log-empty">
+                The arena is ready. Press Play to start the battle.
+              </li>
+            </ol>
+          </section>
+          <details class="field-guide panel" id="field-guide">
+            <summary>
+              <span>How to play</span><span class="summary-hint">Rules and controls</span>
+            </summary>
+            <div class="guide-content">
+              <p>
+                <strong>Move anytime</strong>Hold <kbd>A</kbd>/<kbd>D</kbd> or
+                the arrow keys to run; <kbd>Space</kbd>, <kbd>W</kbd> or
+                <kbd>↑</kbd> jumps. You can steer in the air and pass through
+                the opponent.
+              </p>
+              <p>
+                <strong>Attack</strong>Hold <kbd>J</kbd> to swing every 0.65
+                seconds. Each swing costs 18 stamina. Reach is 1.25 horizontal
+                and 0.8 vertical units, so jumping can dodge a swing.
+              </p>
+              <p>
+                <strong>Guard</strong>Hold <kbd>K</kbd> or <kbd>Shift</kbd>.
+                Guarding halves your speed, drains 8 stamina a second, cuts
+                damage to 4 and counters for 6 if you have 8 stamina.
+              </p>
+              <p>
+                <strong>Recover</strong>Release guard to recover 12 stamina a
+                second. Jumping costs 12 stamina. Release and press jump again
+                after landing.
+              </p>
+              <p>
+                <strong>Jev's timing</strong>About two snapshots a second, one
+                request at a time. Each move lasts up to 0.7 seconds, and
+                answers older than 1.2 seconds are ignored.
+              </p>
+              <p>
+                <strong>Pause and touch</strong>Press Play to start, <kbd>P</kbd>
+                or <kbd>Esc</kbd> to pause. Switching tabs pauses too. On touch
+                screens, hold the on-screen buttons. Nothing is sent while
+                paused.
+              </p>
+            </div>
+          </details>
+        </div>
       </main>
-      <footer>
-        <span>Jev Lab</span><a href="/">Back to projects</a>
-      </footer>
     </div>
+    <footer class="site-footer">
+      <div class="site-footer-inner">
+        <span>Jev decides from a snapshot of the fight. Physics always uses the live positions.</span>
+        <nav aria-label="Footer">
+          <a href="/">Home</a>
+          <a href="/tutor">Navigator</a>
+          <a href="https://github.com/kairugakuo2/jev-arena">GitHub</a>
+        </nav>
+      </div>
+    </footer>
   </body>
 </html>

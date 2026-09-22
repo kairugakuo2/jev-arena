@@ -69,7 +69,7 @@ function clearMeter() {
   $('measured').textContent = 'No reading yet'; $('meter').removeAttribute('aria-valuenow'); paint();
 }
 
-const statusLabels = { inactive:'Choose a problem to begin', ready:'Ready for your edits', updating:'Updating', analyzing:'Reading your edits', watching:'Following your code', delayed:'Reading delayed', unavailable:'Reading unavailable', too_large:'Code exceeds 64 KiB' };
+const statusLabels = { inactive:'Not following any code yet', ready:'Ready for your edits', updating:'Updating', analyzing:'Reading your edits', watching:'Following your code', delayed:'Reading delayed', unavailable:'Reading unavailable', too_large:'Code exceeds 64 KiB' };
 const scheduler = new TutorScheduler({
   request: body => api('/api/tutor/evaluate',body),
   onStatus: info => {
@@ -278,4 +278,4 @@ api('/api/tutor/catalog').then(result => {
   for (const pattern of [...new Set(catalog.map(entry => entry.pattern))]) { const option = document.createElement('option'); option.value = option.textContent = pattern; $('pattern-filter').append(option); }
   renderCatalog(); if (!preparing && !loadedProblem) setProblemStatus('Choose a problem. Source content is imported only after selection.');
 }).catch(() => { setProblemStatus('The NeetCode catalog is unavailable. Use the Custom tab.','alert'); });
-fetch('/api/status').then(response => response.json()).then(status => { $('connection').textContent = status.configured ? 'Gateway connected' : 'Gateway key missing'; }).catch(() => { $('connection').textContent = 'Server unavailable'; });
+fetch('/api/status').then(response => response.json()).then(status => { $('connection').textContent = status.configured ? 'Gateway connected' : 'Gateway key missing'; $('connection').classList.toggle('connected',status.configured); }).catch(() => { $('connection').textContent = 'Server unavailable'; $('connection').classList.add('offline'); });

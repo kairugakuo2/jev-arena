@@ -1,5 +1,15 @@
 # Version history
 
+## 6.0.0 — Redesign
+
+- New look across the site: a light layout with indigo as the brand color, while the code editor and arena stage stay dark.
+- Shared design system in `public/site.css` (colors, type, navigation, buttons, badges, footer) used by every page.
+- Self-hosted Outfit, Inter and JetBrains Mono fonts (SIL Open Font License), since the security policy blocks font CDNs.
+- Home page rebuilt as a landing page with real screenshots, a "how Jev decides" walkthrough and a project section for each tool.
+- Arena: recolored fighters, a proper segmented opponent switch, sentence-case move names and plain-text key hints instead of symbol glyphs.
+- Navigator: light problem library and direction panel around a dark editor. Fixed the One Dark theme overriding the editor's own colors.
+- Added a favicon, served fonts and images with correct content types, and checked text contrast and keyboard focus on every page.
+
 ## 5.3.0 — Faster problem loading
 
 - Questions and starter code now appear as soon as they're imported (under a second), and you can start coding while Jev builds its solution map in the background. Edits made during preparation are included in the first reading.

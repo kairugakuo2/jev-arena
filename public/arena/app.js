@@ -64,7 +64,7 @@ function log(actor, text) {
   time.textContent = game.elapsed.toFixed(1) + "s";
   who.className = "log-actor " + (actor === "ai" ? "enemy" : "");
   who.textContent =
-    actor === "player" ? "YOU" : mode === "jev" ? "JEV" : "RULE BOT";
+    actor === "player" ? "You" : mode === "jev" ? "Jev" : "Rule bot";
   body.className = "log-text";
   body.textContent = text;
   row.append(time, who, body);
@@ -72,7 +72,7 @@ function log(actor, text) {
   while ($("battle-log").children.length > 80)
     $("battle-log").firstChild.remove();
   $("battle-log").scrollTop = $("battle-log").scrollHeight;
-  $("log-count").textContent = `${++count} EVENTS`;
+  $("log-count").textContent = `${++count} ${count === 1 ? "event" : "events"}`;
 }
 function cancelDecision() {
   epoch++;
@@ -125,11 +125,11 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) pause();
 });
 for (const [control, label, container] of [
-  ["left", "← Left · A", "movements"],
-  ["right", "Right · D →", "movements"],
-  ["jump", "↑ Jump · Space", "movements"],
-  ["attack", "⚔ Attack · J", "actions"],
-  ["defend", "◇ Defend · K", "actions"],
+  ["left", "Left (A)", "movements"],
+  ["right", "Right (D)", "movements"],
+  ["jump", "Jump (Space)", "movements"],
+  ["attack", "Attack (J)", "actions"],
+  ["defend", "Guard (K)", "actions"],
 ]) {
   const button = document.createElement("button");
   button.textContent = label;
@@ -180,18 +180,18 @@ function render() {
     $(actor + "-position").textContent =
       `x ${f.x.toFixed(1)} · ${f.y > 0.05 ? "Airborne" : "Grounded"}`;
     $(actor + "-guard").textContent = f.defending
-      ? "◇ Guard active"
+      ? "Guarding"
       : `Attack ${f.cooldown > 0 ? f.cooldown.toFixed(1) + "s" : "ready"}`;
   }
   $("round").textContent = game.elapsed.toFixed(1) + "s";
   $("distance").textContent =
     `${distanceBetween(game.ai, game.player).toFixed(1)} units · ${attackConnects(game.player, game.ai) ? "In reach" : "Out of reach"}`;
   $("stage").dataset.distance = "realtime";
-  $("opponent-name").textContent = mode === "jev" ? "Jev" : "Rule Bot";
-  $("opponent-type").textContent = mode === "jev" ? "AI MODEL" : "RULE ENGINE";
+  $("opponent-name").textContent = mode === "jev" ? "Jev" : "Rule bot";
+  $("opponent-type").textContent = mode === "jev" ? "AI model" : "Rule engine";
   $("jev-mode").setAttribute("aria-pressed", String(mode === "jev"));
   $("rule-mode").setAttribute("aria-pressed", String(mode === "rules"));
-  $("play").textContent = running ? "Ⅱ Pause" : "▶ Play";
+  $("play").textContent = running ? "Pause" : "Play";
   $("play").disabled = Boolean(game.winner);
   for (const button of document.querySelectorAll("[data-control]"))
     button.disabled = !running || Boolean(game.winner);
@@ -207,11 +207,16 @@ function render() {
         ? "Live combat · Jev is evaluating; keep moving."
         : "Live combat · Move and fight whenever you want.";
   $("move-preview").textContent =
-    "Hold A/D or ←/→ to run. Space jumps. Hold J to attack; K or Shift guards.";
+    "Hold A/D or the arrow keys to run. Space jumps. Hold J to attack, K or Shift to guard.";
   $("move-hint").textContent =
     "No turns. Attacks have a 0.65s cooldown. Release guard to regenerate stamina. P / Esc pauses.";
   $("retry").hidden = !failures || !running;
   renderActors();
+}
+// "LEFT_ATTACK" → "Left + attack"
+function moveName(action) {
+  const words = action.toLowerCase().split("_").join(" + ");
+  return words[0].toUpperCase() + words.slice(1);
 }
 function renderDecision() {
   $("probabilities").replaceChildren();
@@ -228,7 +233,7 @@ function renderDecision() {
     row.className =
       "prob-row" + (decision?.action === action ? " selected" : "");
     label.className = "prob-label";
-    name.textContent = action.replaceAll("_", " + ");
+    name.textContent = moveName(action);
     value.textContent = p == null ? "—" : (p * 100).toFixed(1) + "%";
     bar.max = 1;
     bar.value = p ?? 0;
@@ -244,10 +249,10 @@ function renderDecision() {
   $("decision-source").textContent =
     mode === "jev" ? "typesafe-ai/jev" : "if / else · deterministic";
   $("decision-round").textContent = decision
-    ? `SNAPSHOT ${decision.time.toFixed(1)}s`
-    : "AWAITING PLAY";
+    ? `Snapshot at ${decision.time.toFixed(1)}s`
+    : "Waiting for Play";
   $("chosen-action").textContent =
-    decision?.action.replaceAll("_", " + ") ?? "Waiting for Play";
+    (decision ? moveName(decision.action) : "Waiting for Play");
   $("decision-timing").textContent = decision
     ? `${Math.round(decision.latency)} ms · ${decision.applied ? "intent applied" : "stale — ignored"}`
     : "At most 2 requests/sec · one in flight";
@@ -378,7 +383,7 @@ $("reset").addEventListener("click", () => {
   accumulator = 0;
   $("battle-log").innerHTML =
     '<li class="log-empty">Press Play to enter the arena.</li>';
-  $("log-count").textContent = "0 EVENTS";
+  $("log-count").textContent = "0 events";
   $("request-error").hidden = true;
   $("debug-state").textContent = "No decision yet.";
   $("debug-question").textContent = "No request yet.";
@@ -387,13 +392,16 @@ $("reset").addEventListener("click", () => {
 });
 fetch("/api/status")
   .then((r) => r.json())
-  .then(
-    (s) =>
-      ($("connection").textContent = s.configured
-        ? "● Gateway key configured"
-        : "○ Jev needs a key · Rules work offline"),
-  )
-  .catch(() => ($("connection").textContent = "Server unreachable"));
+  .then((s) => {
+    $("connection").textContent = s.configured
+      ? "Gateway connected"
+      : "No Gateway key (rules work offline)";
+    $("connection").classList.toggle("connected", s.configured);
+  })
+  .catch(() => {
+    $("connection").textContent = "Server unreachable";
+    $("connection").classList.add("offline");
+  });
 renderDecision();
 render();
 requestAnimationFrame(frame);

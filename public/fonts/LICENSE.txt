@@ -1,0 +1,6 @@
+Self-hosted fonts, all under the SIL Open Font License 1.1:
+- outfit.woff2: Outfit, Copyright 2021 The Outfit Project Authors
+- inter.woff2: Inter, Copyright 2020 The Inter Project Authors
+- jetbrains-mono.woff2: JetBrains Mono, Copyright 2020 The JetBrains Mono Project Authors
+
+Latin subsets from the @fontsource-variable npm packages. Full license: https://openfontlicense.org

@@ -11,7 +11,15 @@ export const staticFiles = {
   "/": ["index.html", "text/html"],
   "/arena": ["arena.html", "text/html"],
   "/arena/": ["arena.html", "text/html"],
+  "/site.css": ["site.css", "text/css"],
+  "/favicon.svg": ["favicon.svg", "image/svg+xml"],
+  "/favicon.ico": ["favicon.svg", "image/svg+xml"],
   "/hub.css": ["hub.css", "text/css"],
+  "/fonts/outfit.woff2": ["fonts/outfit.woff2", "font/woff2"],
+  "/fonts/inter.woff2": ["fonts/inter.woff2", "font/woff2"],
+  "/fonts/jetbrains-mono.woff2": ["fonts/jetbrains-mono.woff2", "font/woff2"],
+  "/images/navigator.png": ["images/navigator.png", "image/png"],
+  "/images/arena.png": ["images/arena.png", "image/png"],
   "/hub.js": ["hub.js", "text/javascript"],
   "/arena/styles.css": ["arena/styles.css", "text/css"],
   "/arena/app.js": ["arena/app.js", "text/javascript"],
@@ -161,9 +169,11 @@ export const server = createServer(async (request, response) => {
       content = content.toString('utf8').replaceAll('__STYLE_NONCE__', nonce);
       response.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self'; style-src 'self' 'nonce-${nonce}'; style-src-attr 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'`);
     }
+    const binary = type.startsWith("font/") || type.startsWith("image/");
     response.writeHead(200, {
-      "Content-Type": `${type}; charset=utf-8`,
-      "Cache-Control": "no-store",
+      "Content-Type": binary ? type : `${type}; charset=utf-8`,
+      // Fonts and screenshots never change between edits; pages and code do.
+      "Cache-Control": binary ? "public, max-age=86400" : "no-store",
     });
     response.end(content);
   } catch {

@@ -5,93 +5,212 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Jev Lab: small local projects built on Vercel's Jev decision model."
+      content="Jev Lab: practice coding problems with live hotter/colder feedback, or fight an AI in a real-time arena. Built on Vercel's Jev model."
     />
     <title>Jev Lab</title>
+    <link rel="preload" href="/fonts/outfit.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css" />
     <link rel="stylesheet" href="/hub.css" />
     <script type="module" src="/hub.js"></script>
   </head>
   <body>
-    <div class="shell">
-      <header class="topbar">
-        <a class="brand" href="/" aria-label="Jev Lab home">
-          <span class="brand-icon" aria-hidden="true">J</span>
-          <span>Jev Lab</span>
-        </a>
-        <div class="gateway" id="gateway-status" role="status">
-          <span class="status-dot" aria-hidden="true"></span>
-          <span>Checking Gateway…</span>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <header class="site-nav">
+      <div class="site-nav-inner">
+        <a class="brand" href="/" aria-label="Jev Lab home"
+          ><span class="brand-mark" aria-hidden="true">J</span
+          ><span class="brand-name">Jev Lab</span></a
+        >
+        <nav aria-label="Projects">
+          <ul class="nav-links">
+            <li><a href="/tutor">Navigator</a></li>
+            <li><a href="/arena">Arena</a></li>
+          </ul>
+        </nav>
+        <div class="nav-end">
+          <span class="status-pill" id="gateway-status" role="status"
+            ><span class="status-text">Checking Gateway…</span></span
+          >
+          <a class="btn btn-primary" href="/tutor">Start coding</a>
         </div>
-      </header>
+      </div>
+    </header>
 
-      <main>
-        <section class="hero">
-          <h1>Jev Lab</h1>
-          <p>
-            Small projects built on <code>typesafe-ai/jev</code>, a model that
-            answers multiple-choice questions with probabilities. Each project
-            runs through a local Node server that keeps the API key off the
-            browser.
+    <main id="main-content">
+      <section class="hero">
+        <div class="hero-copy">
+          <h1>
+            Write code. Fight a bot.<br /><span class="accent"
+              >Watch Jev decide.</span
+            >
+          </h1>
+          <p class="lede">
+            Jev Lab is two small projects built on Jev, a model that answers
+            multiple-choice questions with a probability for every option.
+            Everything runs on your own machine.
           </p>
-        </section>
+          <div class="hero-actions">
+            <a class="btn btn-primary btn-lg" href="/tutor"
+              ><svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <polygon points="6 4 20 12 6 20 6 4" /></svg
+              >Start a problem</a
+            >
+            <a class="btn btn-secondary btn-lg" href="/arena">Play the Arena</a>
+          </div>
+          <p class="hero-note">Free and open source. Bring your own Vercel AI Gateway key.</p>
+        </div>
+        <figure class="window hero-window">
+          <div class="window-bar" aria-hidden="true">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="address">localhost:3000/tutor</span>
+          </div>
+          <img
+            src="/images/navigator.png"
+            width="2100"
+            height="1320"
+            alt="Coding Navigator: the NeetCode library on the left, a Python solution in the dark editor, and the direction meter reading hotter"
+          />
+        </figure>
+      </section>
 
-        <section class="projects" aria-labelledby="projects-title">
-          <h2 id="projects-title">Projects</h2>
+      <section class="how" aria-labelledby="how-title">
+        <div class="section-head">
+          <h2 id="how-title">One question, a probability for every answer</h2>
+          <p>
+            Both projects ask Jev the same kind of thing: here's what just
+            happened, which option fits best? Jev answers with a number for each
+            choice, and the page shows all of them.
+          </p>
+        </div>
+        <ol class="steps">
+          <li class="card step">
+            <span class="step-num">1</span>
+            <h3>Snapshot</h3>
+            <p>Your code before and after your last edit, or both fighters' position, speed and stamina.</p>
+            <pre class="step-sample" aria-hidden="true"><span class="rm">-    pass</span>
+<span class="add">+    seen = {}</span>
+<span class="add">+    for i, x in enumerate(nums):</span></pre>
+          </li>
+          <li class="card step">
+            <span class="step-num">2</span>
+            <h3>Question</h3>
+            <p>A fixed multiple-choice question, with rules for judging each answer.</p>
+            <blockquote class="step-sample question">Did this edit move toward a working, efficient solution?</blockquote>
+          </li>
+          <li class="card step">
+            <span class="step-num">3</span>
+            <h3>Probabilities</h3>
+            <p>A probability for every option. The page shows them live instead of hiding them.</p>
+            <div class="step-sample bars" aria-label="Example output: hotter 82 percent, colder 18 percent">
+              <div class="bar-row"><span>Hotter</span><span class="bar"><i class="w-82"></i></span><b>82%</b></div>
+              <div class="bar-row cold"><span>Colder</span><span class="bar"><i class="w-18"></i></span><b>18%</b></div>
+            </div>
+          </li>
+        </ol>
+      </section>
 
-          <article class="project-card">
-            <a class="project-link" href="/arena">
-              <div class="arena-preview" aria-hidden="true">
-                <div class="mini-fighter player"><i></i><b></b></div>
-                <div class="mini-fighter jev"><i></i><b></b></div>
-                <div class="floor"></div>
-              </div>
-              <div class="card-content">
-                <h3>AI Gladiator</h3>
-                <p>
-                  A real-time 2D fight against Jev. Every half second Jev reads
-                  both fighters' position, velocity, stamina and cooldowns, and
-                  picks one of 12 controls.
-                </p>
-                <ul class="tags">
-                  <li>Keyboard or touch</li>
-                  <li>Rule-based opponent works offline</li>
-                  <li>Shows each decision's probabilities</li>
-                </ul>
-                <span class="open">Open Arena →</span>
-              </div>
-            </a>
-          </article>
+      <section class="project" aria-labelledby="navigator-title">
+        <div class="project-copy">
+          <span class="badge tag">Coding practice</span>
+          <h2 id="navigator-title">Coding Navigator</h2>
+          <p>
+            Pick a problem and start writing. While you type, a meter slides
+            toward hotter when your edits move toward a working algorithm and
+            toward colder when they drift away. It points the way without ever
+            showing you the answer.
+          </p>
+          <ul class="checks">
+            <li>All 150 NeetCode problems, filtered by pattern and difficulty</li>
+            <li>Starter code in Python or JavaScript</li>
+            <li>Paste in any other problem you want to practice</li>
+            <li>Your code is judged, never run</li>
+          </ul>
+          <a class="btn btn-primary" href="/tutor"
+            >Open the Navigator
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg
+          ></a>
+        </div>
+        <div class="project-visual">
+          <div class="card meter-demo" aria-hidden="true">
+            <div class="demo-head">
+              <span class="demo-title">1. Two Sum</span><span class="badge badge-easy">Easy</span>
+            </div>
+            <pre class="demo-code"><span class="k">class</span> Solution:
+    <span class="k">def</span> <span class="f">twoSum</span>(self, nums, target):
+        seen = {}
+        <span class="k">for</span> i, x <span class="k">in</span> enumerate(nums):
+            <span class="k">if</span> target - x <span class="k">in</span> seen:
+                <span class="k">return</span> [seen[target - x], i]
+            seen[x] = i</pre>
+            <div class="demo-meter">
+              <div class="demo-reading"><strong>94</strong><span>% hotter</span></div>
+              <div class="demo-scale"><i></i></div>
+              <div class="demo-labels"><span>Colder</span><span>Much hotter</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-          <article class="project-card">
-            <a class="project-link" href="/tutor">
-              <div class="tutor-preview" aria-hidden="true">
-                <div class="preview-meter"><i></i></div>
-                <div class="preview-labels"><span>Colder</span><span>Hotter</span></div>
-              </div>
-              <div class="card-content">
-                <h3>Coding Navigator</h3>
-                <p>
-                  Paste a LeetCode-style problem and start writing a solution.
-                  Jev compares each batch of edits against a reference map of
-                  valid approaches and tells you whether you're getting hotter
-                  or colder. It never shows you the answer.
-                </p>
-                <ul class="tags">
-                  <li>Python and JavaScript</li>
-                  <li>Updates while you type</li>
-                  <li>Code is never executed</li>
-                </ul>
-                <span class="open">Open Navigator →</span>
-              </div>
-            </a>
-          </article>
-        </section>
-      </main>
+      <section class="project flip" aria-labelledby="arena-title">
+        <div class="project-copy">
+          <span class="badge tag">Real-time game</span>
+          <h2 id="arena-title">AI Gladiator</h2>
+          <p>
+            Run, jump, attack and guard in a 2D fight. About twice a second Jev
+            reads the fight and picks one of 12 moves, and the side panel shows
+            the probability it gave each one.
+          </p>
+          <ul class="checks">
+            <li>Keyboard or touch controls</li>
+            <li>A rule-based opponent that works offline</li>
+            <li>Every decision shown with its probabilities</li>
+          </ul>
+          <a class="btn btn-primary" href="/arena"
+            >Enter the Arena
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg
+          ></a>
+        </div>
+        <figure class="project-visual window">
+          <div class="window-bar" aria-hidden="true">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="address">localhost:3000/arena</span>
+          </div>
+          <img
+            src="/images/arena.png"
+            width="2100"
+            height="1320"
+            loading="lazy"
+            alt="AI Gladiator: two fighters on a dark stage with health and stamina bars, and a panel listing the probability of each of the 12 moves"
+          />
+        </figure>
+      </section>
 
-      <footer>
-        <span>Jev Lab</span>
-        <a href="https://github.com/kairugakuo2/jev-arena">Source on GitHub</a>
-      </footer>
-    </div>
+      <section class="facts" aria-label="How Jev Lab runs">
+        <div class="fact">
+          <h3>Your key stays put</h3>
+          <p>A small local Node server holds the API key. The browser never sees it.</p>
+        </div>
+        <div class="fact">
+          <h3>Nothing gets executed</h3>
+          <p>Jev reads your code as text. It's never run on your machine or anywhere else.</p>
+        </div>
+        <div class="fact">
+          <h3>Works without a key</h3>
+          <p>The Arena's rule-based opponent runs entirely in your browser.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="site-footer-inner">
+        <span>Jev Lab, an open-source experiment with Vercel's Jev model.</span>
+        <nav aria-label="Footer">
+          <a href="/tutor">Navigator</a>
+          <a href="/arena">Arena</a>
+          <a href="https://github.com/kairugakuo2/jev-arena">GitHub</a>
+        </nav>
+      </div>
+    </footer>
   </body>
 </html>

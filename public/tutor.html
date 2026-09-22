@@ -5,18 +5,22 @@
   <meta name="style-nonce" content="__STYLE_NONCE__">
   <meta name="description" content="Write a solution to a coding problem and get live hotter/colder feedback from Jev.">
   <title>Coding Navigator · Jev Lab</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/site.css">
   <link rel="stylesheet" href="/tutor/styles.css">
   <script type="module" src="/tutor/bundle.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to main content</a>
-  <header class="topbar">
-    <a class="brand" href="/" aria-label="Back to Jev Lab"><span class="brand-mark" aria-hidden="true">J</span> Jev Lab</a>
-    <span class="breadcrumb"><span>/</span> <strong>Coding Navigator</strong></span>
-    <span class="connection" id="connection">Checking Gateway…</span>
+  <header class="site-nav wide">
+    <div class="site-nav-inner">
+      <a class="brand" href="/" aria-label="Jev Lab home"><span class="brand-mark" aria-hidden="true">J</span><span class="brand-name">Jev Lab</span></a>
+      <nav aria-label="Projects"><ul class="nav-links"><li><a href="/tutor" aria-current="page">Navigator</a></li><li><a href="/arena">Arena</a></li></ul></nav>
+      <div class="nav-end"><span class="status-pill" id="connection" role="status">Checking Gateway…</span></div>
+    </div>
   </header>
   <main id="main-content">
-    <div class="heading"><h1>Coding Navigator</h1><p class="subtitle">Choose a NeetCode 150 problem or paste your own. The meter shows whether your latest edits are moving toward a working algorithm.</p></div>
+    <div class="heading"><h1>Coding Navigator</h1><p class="subtitle">Pick a problem and start writing. The meter shows whether your latest edits are moving toward a working algorithm.</p></div>
     <div class="workspace">
       <section class="problem-panel panel" aria-labelledby="problem-title">
         <div class="entry-tabs" role="tablist" aria-label="Problem source">
@@ -30,7 +34,7 @@
               <label for="pattern-filter">Pattern<select id="pattern-filter"><option value="all">All patterns</option></select></label>
               <label for="difficulty-filter">Difficulty<select id="difficulty-filter"><option value="all">All levels</option><option>Easy</option><option>Medium</option><option>Hard</option></select></label>
             </div>
-            <div class="catalog-actions"><span id="catalog-count">Loading catalog…</span><button class="quiet-button" id="surprise-problem" type="button" disabled>Surprise me</button></div>
+            <div class="catalog-actions"><span id="catalog-count">Loading catalog…</span><button class="btn btn-secondary btn-sm" id="surprise-problem" type="button" disabled><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>Surprise me</button></div>
             <div id="catalog-results" class="catalog-results" aria-live="polite"></div>
             <div id="surprise-empty" class="empty-state" hidden>No problems match these filters.</div>
             <p class="attribution">Problem statements and reference material are imported from <a href="https://neetcode.io/practice/practice/neetcode150" target="_blank" rel="noreferrer">NeetCode</a> only when you select a problem.</p>
@@ -39,12 +43,12 @@
             <form id="problem-form">
               <label for="problem-input">Problem statement, examples and constraints</label>
               <textarea id="problem-input" minlength="40" maxlength="20000" required spellcheck="false"></textarea>
-              <button class="primary" id="prepare" type="submit">Prepare custom problem</button>
+              <button class="btn btn-primary primary" id="prepare" type="submit">Prepare custom problem</button>
               <p class="helper">Jev Lab builds and privately caches a reference map of valid approaches. Custom problems use only the text you paste.</p>
             </form>
           </div>
           <div id="problem-ready" hidden>
-            <div class="ready-heading"><span id="problem-source" class="source-badge">Custom</span></div>
+            <div class="ready-heading"><span id="problem-source" class="badge source-badge">Custom</span></div>
             <div id="problem-text"></div>
             <a id="source-link" class="source-link" target="_blank" rel="noreferrer" hidden>View on NeetCode</a>
             <button class="text-button" id="change-problem" type="button">Choose another problem</button>
@@ -59,15 +63,15 @@
         <div id="editor" aria-busy="true"></div>
         <div id="editor-gate" class="editor-gate" role="status">Choose a problem to load its starter code.</div>
         <div class="editor-bottom"><span id="cursor-position">Ln 1, Col 1</span><span>Spaces: 4</span><span id="save-state">Local draft</span></div>
-        <p id="editor-help">Tab to indent · Shift+Tab to unindent · Esc, then Tab to leave editor</p>
+        <p id="editor-help"><kbd>Tab</kbd> indent · <kbd>Shift</kbd>+<kbd>Tab</kbd> unindent · <kbd>Esc</kbd> then <kbd>Tab</kbd> to leave the editor</p>
       </section>
       <aside class="signal-panel" aria-label="Live algorithmic direction">
-        <div class="signal-header">Direction</div>
+        <h2 class="signal-header">Direction</h2>
         <div id="heat-meter" class="unmeasured"><div class="reading-row"><span id="reading">—</span><span class="percent">%</span></div><p class="reading-label">hotter probability</p>
           <div class="meter-labels"><span>Colder</span><span>Hotter</span></div>
           <div id="meter" class="meter" role="meter" aria-label="Probability recent edits are hotter" aria-valuemin="0" aria-valuemax="100"><div id="meter-fill"></div><div class="meter-center"></div><div id="meter-marker"></div></div>
         </div>
-        <h2 id="direction">Waiting for your first edits</h2><p class="measured" id="measured">No reading yet</p>
+        <p id="direction" class="direction">Waiting for your first edits</p><p class="measured" id="measured">No reading yet</p>
         <div class="live-state" id="live-state" data-state="inactive"><span class="live-dot"></span><span id="live-label">Choose a problem to begin</span></div>
         <p id="feedback-error" class="feedback-error" role="status"></p>
         <p class="signal-explanation">Based on your most recent edits, not on how much of the problem you've solved. Readings near 50 mean the change was neutral or unclear.</p>
@@ -76,7 +80,7 @@
         <span id="announcement" class="sr-only" role="status" aria-live="polite"></span>
       </aside>
     </div>
-    <footer><span>Your code is sent to Jev for evaluation. It is never run.</span></footer>
   </main>
+  <footer class="site-footer wide"><div class="site-footer-inner"><span>Your code is sent to Jev as text for evaluation. It is never run.</span><nav aria-label="Footer"><a href="/">Home</a><a href="/arena">Arena</a><a href="https://github.com/kairugakuo2/jev-arena">GitHub</a></nav></div></footer>
 </body>
 </html>
