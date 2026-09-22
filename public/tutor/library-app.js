@@ -212,7 +212,8 @@ async function pollProblem(generation = loadGeneration) {
     if (generation !== loadGeneration) return;
     pollFailures = 0;
     if (preparationStatus(result)) return;
-    pollTimer = setTimeout(() => pollProblem(generation),1000);
+    // Poll quickly until the question arrives; the feedback map takes longer.
+    pollTimer = setTimeout(() => pollProblem(generation),loadedProblem ? 1000 : 250);
   } catch (error) {
     if (generation !== loadGeneration) return;
     if (error.retryable !== false && ++pollFailures <= 3) {
