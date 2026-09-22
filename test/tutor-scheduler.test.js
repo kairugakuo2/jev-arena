@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TutorScheduler, smoothPosition } from '../public/tutor/scheduler.js';
+import { TutorScheduler, smoothPosition, utf8Bytes } from '../public/tutor/scheduler.js';
 
 function harness() {
   let time = 0, next = 0;
@@ -111,4 +111,51 @@ test('default browser timer functions are never called with the scheduler as the
     const scheduler = new TutorScheduler({ request: async () => ({}) });
     assert.doesNotThrow(() => scheduler.reset(null));
   } finally { globalThis.clearTimeout = original; }
+});
+
+test('UTF-8 code over 64 KiB pauses and returning below the limit sends a full replacement', async () => {
+  const h = harness();
+  const oversized = '😀'.repeat(16_385);
+  assert.ok(utf8Bytes(oversized) > 65_536);
+  h.scheduler.edit(oversized, [{ from: 0, to: 5, insert: oversized }]);
+  await h.advance(5_000);
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.statuses.at(-1).state, 'too_large');
+
+  h.scheduler.edit('valid again', [{ from: oversized.length, to: oversized.length, insert: '!' }]);
+  await h.advance(300);
+  assert.equal(h.calls.length, 1);
+  assert.deepEqual(h.calls[0].body.recentEdits, [{
+    beforeRevision: 0,
+    afterRevision: 1,
+    changes: [{ from: 0, to: 5, insert: 'valid again' }],
+  }]);
+});
+
+test('oversized edit history is compacted to one full-document replacement', async () => {
+  const h = harness();
+  const large = 'x'.repeat(60_000);
+  for (let index = 0; index < 5; index++) {
+    h.scheduler.edit(`${large}${index}`, [{ from: 0, to: index ? 60_001 : 5, insert: `${large}${index}` }]);
+  }
+  await h.advance(300);
+  assert.equal(h.calls.length, 1);
+  assert.deepEqual(h.calls[0].body.recentEdits, [{
+    beforeRevision: 0,
+    afterRevision: 5,
+    changes: [{ from: 0, to: 5, insert: `${large}4` }],
+  }]);
+  assert.ok(utf8Bytes(JSON.stringify(h.calls[0].body.recentEdits)) < 96 * 1024);
+});
+
+test('deterministic client errors do not enter the retry loop', async () => {
+  const h = harness();
+  h.scheduler.edit('one');
+  await h.advance(300);
+  const error = new Error('Request too large.');
+  error.retryable = false;
+  h.calls[0].reject(error);
+  await h.advance(20_000);
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.statuses.at(-1).state, 'unavailable');
 });

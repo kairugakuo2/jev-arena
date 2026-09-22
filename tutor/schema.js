@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_CODE_BYTES, MAX_HISTORY_BYTES, utf8Bytes } from '../public/tutor/scheduler.js';
 
 const text = z.string().min(1).max(4000);
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
@@ -46,14 +47,29 @@ export function validateGraph(input) {
   return graph;
 }
 
+const codeText = z.string().refine(value => utf8Bytes(value) <= MAX_CODE_BYTES, 'Code exceeds 64 KiB.');
+const recentEdits = z.array(z.object({ beforeRevision: z.number().int().nonnegative(), afterRevision: z.number().int().positive(),
+  changes: z.array(z.object({ from: z.number().int().nonnegative().max(65536), to: z.number().int().nonnegative().max(65536), insert: codeText })).max(200),
+})).max(5);
+
 export const evaluationSchema = z.object({
   problemId: z.string().regex(/^[a-f0-9]{64}$/), graphVersion: id, sessionId: id,
   language: z.enum(['python','javascript']),
   baselineRevision: z.number().int().nonnegative(), currentRevision: z.number().int().positive(),
-  beforeCode: z.string().max(65536), afterCode: z.string().max(65536),
-  recentEdits: z.array(z.object({ beforeRevision: z.number().int().nonnegative(), afterRevision: z.number().int().positive(),
-    changes: z.array(z.object({ from: z.number().int().nonnegative().max(65536), to: z.number().int().nonnegative().max(65536), insert: z.string().max(65536) })).max(200),
-  })).max(5),
+  beforeCode: codeText, afterCode: codeText, recentEdits,
+}).superRefine((body, context) => {
+  const historyBytes = utf8Bytes(JSON.stringify(body.recentEdits));
+  const [edit] = body.recentEdits;
+  const [change] = edit?.changes ?? [];
+  const canonicalReplacement = body.recentEdits.length === 1 && edit.changes.length === 1
+    && edit.beforeRevision === body.baselineRevision && edit.afterRevision === body.currentRevision
+    && change.from === 0 && change.to === body.beforeCode.length && change.insert === body.afterCode;
+  if (historyBytes > MAX_HISTORY_BYTES && !canonicalReplacement) {
+    context.addIssue({ code: 'custom', path: ['recentEdits'], message: 'Edit history exceeds 96 KiB.' });
+  }
+  if (utf8Bytes(JSON.stringify(body)) > 512 * 1024) {
+    context.addIssue({ code: 'custom', message: 'Evaluation payload exceeds 512 KiB.' });
+  }
 });
 
 export function validateEvaluation(input) {

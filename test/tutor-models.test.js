@@ -24,6 +24,33 @@ test('edit validation preserves indentation but rejects oversized, unordered and
   assert.throws(() => validateEvaluation({ ...body, afterCode: 'x'.repeat(65537) }));
   assert.throws(() => validateEvaluation({ ...body, recentEdits: [{ beforeRevision: 8, afterRevision: 9, changes: [] }] }));
   assert.throws(() => validateEvaluation({ ...body, language: 'shell' }));
+  assert.throws(() => validateEvaluation({ ...body, afterCode: '😀'.repeat(16_385) }));
+});
+
+test('schema rejects oversized edit history while compacted evaluation fits transport limit', () => {
+  const code = '\n'.repeat(65_536);
+  const compact = {
+    ...evaluationFixture(),
+    beforeCode: code,
+    afterCode: code,
+    recentEdits: [{
+      beforeRevision: 0,
+      afterRevision: 1,
+      changes: [{ from: 0, to: 65_536, insert: code }],
+    }],
+  };
+  const oversizedHistory = {
+    ...compact,
+    currentRevision: 5,
+    recentEdits: Array.from({ length: 5 }, (_, index) => ({
+      beforeRevision: index,
+      afterRevision: index + 1,
+      changes: [{ from: 0, to: 65_536, insert: code }],
+    })),
+  };
+  assert.throws(() => validateEvaluation(oversizedHistory));
+  assert.doesNotThrow(() => validateEvaluation(compact));
+  assert.ok(Buffer.byteLength(JSON.stringify(compact)) < 512 * 1024);
 });
 
 test('independent review repairs once, rechecks, caches, and keeps reference context private', async () => {

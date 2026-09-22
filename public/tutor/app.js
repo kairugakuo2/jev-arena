@@ -1,5 +1,5 @@
 import { createCodeEditor } from './editor.js';
-import { TutorScheduler, smoothPosition } from './scheduler.js';
+import { TutorScheduler, smoothPosition, MAX_CODE_BYTES, utf8Bytes } from './scheduler.js';
 
 const $ = id => document.getElementById(id);
 const sample = `Two Sum
@@ -39,7 +39,11 @@ async function api(path, body, timeout = 4000) {
     headers: body === undefined ? {} : { 'Content-Type':'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(timeout) });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'Request failed.');
+  if (!response.ok) {
+    const error = new Error(data.error || 'Request failed.');
+    error.retryable = response.status === 429 || response.status >= 500;
+    throw error;
+  }
   return data;
 }
 
@@ -72,13 +76,14 @@ function clearMeter() {
   paint();
 }
 
-const statusLabels = { inactive:'Prepare a problem to begin', ready:'Ready for your edits', updating:'Updating', analyzing:'Reading your edits', watching:'Following your code', delayed:'Reading delayed', unavailable:'Reading unavailable' };
+const statusLabels = { inactive:'Prepare a problem to begin', ready:'Ready for your edits', updating:'Updating', analyzing:'Reading your edits', watching:'Following your code', delayed:'Reading delayed', unavailable:'Reading unavailable', too_large:'Code exceeds 64 KiB' };
 const scheduler = new TutorScheduler({
   request: body => api('/api/tutor/evaluate', body),
   onStatus: info => {
     $('live-label').textContent = statusLabels[info.state];
     $('live-state').dataset.state = info.state;
-    $('feedback-error').textContent = info.state === 'unavailable' ? info.message || 'Retrying shortly.' : '';
+    $('feedback-error').textContent = info.state === 'unavailable' ? info.message || 'Retrying shortly.'
+      : info.state === 'too_large' ? 'Shorten the file below 64 KiB to resume evaluation.' : '';
     $('revision-info').textContent = `Current ${info.revision ?? 0} · evaluated ${info.evaluatedRevision ?? 0}`;
   },
   onReading: result => {
@@ -104,12 +109,8 @@ const editor = createCodeEditor({ parent:$('editor'), nonce:document.querySelect
   doc:'# Write your solution here.\n',
   onChange: (code,changes) => {
     $('save-state').textContent = 'Draft saved locally';
-    if (code.length > 65536) {
-      scheduler.setPaused(true); $('feedback-error').textContent = 'Code exceeds the 64 KB evaluation limit. Shorten it to resume.';
-    } else {
-      scheduler.setPaused(document.hidden || composing);
-      scheduler.edit(code,changes);
-    }
+    scheduler.setPaused(document.hidden || composing);
+    scheduler.edit(code,changes);
     saveDraft();
   },
   onSelection: ({line,column}) => { $('cursor-position').textContent = `Ln ${line}, Col ${column}`; },
@@ -184,9 +185,9 @@ $('language').addEventListener('change',() => {
 });
 $('reset-signal').addEventListener('click',newSession);
 editor.view.contentDOM.addEventListener('compositionstart',() => { composing = true; scheduler.setPaused(true); });
-editor.view.contentDOM.addEventListener('compositionend',() => { composing = false; scheduler.setPaused(document.hidden || editor.code().length > 65536); });
+editor.view.contentDOM.addEventListener('compositionend',() => { composing = false; scheduler.setPaused(document.hidden); });
 document.addEventListener('visibilitychange',() => {
-  scheduler.setPaused(document.hidden || composing || editor.code().length > 65536);
+  scheduler.setPaused(document.hidden || composing);
   if (document.hidden) { cancelAnimationFrame(frame); frame = 0; lastFrame = null; }
   else moveMeter();
 });
@@ -196,7 +197,7 @@ window.addEventListener('pagehide',() => { scheduler.dispose(); clearTimeout(pol
 newSession();
 try {
   const draft = JSON.parse(localStorage.getItem('jev-tutor-draft'));
-  if (draft && typeof draft.code === 'string' && draft.code.length <= 65536 && ['python','javascript'].includes(draft.language)) {
+  if (draft && typeof draft.code === 'string' && utf8Bytes(draft.code) <= MAX_CODE_BYTES && ['python','javascript'].includes(draft.language)) {
     language = draft.language; $('language').value = language; editor.setLanguage(language);
     $('filename').textContent = language === 'python' ? 'solution.py' : 'solution.js';
     if (typeof draft.statement === 'string') $('problem-input').value = draft.statement;

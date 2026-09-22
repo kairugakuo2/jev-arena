@@ -1,3 +1,11 @@
+export const MAX_CODE_BYTES = 64 * 1024;
+export const MAX_HISTORY_BYTES = 96 * 1024;
+const encoder = new TextEncoder();
+
+export function utf8Bytes(value) {
+  return encoder.encode(value).byteLength;
+}
+
 export function smoothPosition(current, target, seconds) {
   return current + (target - current) * (1 - Math.exp(-Math.max(0, seconds) / 0.35));
 }
@@ -30,17 +38,35 @@ export class TutorScheduler {
     this.lastDisplayed = 0;
     this.failures = 0;
     this.retryAfter = 0;
+    this.oversized = false;
     this.onStatus({ state: context ? 'ready' : 'inactive' });
   }
 
   edit(code, changes = []) {
-    if (!this.context || code === this.latest.code) return;
+    if (!this.context || (code === this.latest.code && !this.oversized)) return;
+    if (utf8Bytes(code) > MAX_CODE_BYTES) {
+      if (!this.oversized) this.generation++;
+      this.oversized = true;
+      this.clearTimer(this.timer);
+      this.firstPending = null;
+      this.status('too_large');
+      return;
+    }
     const beforeRevision = this.latest.revision;
     this.latest = { revision: beforeRevision + 1, code };
+    if (this.oversized) {
+      this.oversized = false;
+      this.edits = [{
+        beforeRevision: this.baseline.revision,
+        afterRevision: this.latest.revision,
+        changes: [{ from: 0, to: this.baseline.code.length, insert: code }],
+      }];
+    } else {
+      this.edits.push({ beforeRevision, afterRevision: this.latest.revision, changes });
+      this.edits = this.edits.slice(-5);
+    }
     this.lastEdit = this.now();
     this.firstPending ??= this.lastEdit;
-    this.edits.push({ beforeRevision, afterRevision: this.latest.revision, changes });
-    this.edits = this.edits.slice(-5);
     this.status('updating');
     this.schedule();
   }
@@ -57,7 +83,7 @@ export class TutorScheduler {
 
   schedule() {
     this.clearTimer(this.timer);
-    if (!this.context || this.paused || this.inFlight || this.firstPending === null) return;
+    if (!this.context || this.paused || this.oversized || this.inFlight || this.firstPending === null) return;
     const due = Math.max(Math.min(this.lastEdit + 300, this.firstPending + 1000), this.lastStart + 750, this.retryAfter);
     this.timer = this.setTimer(() => this.send(), Math.max(0, due - this.now()));
   }
@@ -67,9 +93,17 @@ export class TutorScheduler {
     const epoch = this.generation;
     const snapshot = { ...this.latest };
     const sentAt = this.now(), editedAt = this.lastEdit;
+    let recentEdits = this.edits.filter(e => e.afterRevision > this.baseline.revision);
+    if (utf8Bytes(JSON.stringify(recentEdits)) > MAX_HISTORY_BYTES) {
+      recentEdits = [{
+        beforeRevision: this.baseline.revision,
+        afterRevision: snapshot.revision,
+        changes: [{ from: 0, to: this.baseline.code.length, insert: snapshot.code }],
+      }];
+    }
     const body = structuredClone({ ...this.context, baselineRevision: this.baseline.revision,
       currentRevision: snapshot.revision, beforeCode: this.baseline.code, afterCode: snapshot.code,
-      recentEdits: this.edits.filter(e => e.afterRevision > this.baseline.revision) });
+      recentEdits });
     this.inFlight = true;
     this.lastStart = sentAt;
     this.firstPending = null;
@@ -92,6 +126,11 @@ export class TutorScheduler {
       } else this.status('delayed');
     } catch (error) {
       if (epoch !== this.generation) return;
+      if (error.retryable === false) {
+        this.firstPending = null;
+        this.status('unavailable', { message: error.message });
+        return;
+      }
       this.failures++;
       this.retryAfter = this.now() + Math.min(8000, 1000 * 2 ** (this.failures - 1));
       this.firstPending ??= this.now();
