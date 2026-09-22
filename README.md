@@ -56,8 +56,8 @@ If `npm start` fails with `node: bad option: --env-file-if-exists`, your Node.js
 ### Try the Navigator
 
 1. Open **Coding Navigator** and choose a problem from the NeetCode 150 library. The **Custom** tab still accepts a full problem statement you paste yourself.
-2. The first library open imports the source, then builds its solution map. Preparation shows four stages: importing source, mapping approaches, reviewing reference and ready. Later opens use private caches.
-3. When preparation is ready, the editor unlocks with the selected problem's starter code. Type inside the method. The meter updates a moment after each pause. A nested-loop brute force should read strongly hotter. Swapping in a hash map should read hotter again.
+2. The question and starter code appear in under a second, and you can start typing right away. Jev builds its solution map in the background, which takes about 20 seconds the first time a problem is opened. Later opens use the cache and are instant.
+3. Once the map is ready, the meter starts following your edits, including anything you typed while it was preparing. It updates a moment after each pause. A nested-loop brute force should read strongly hotter. Swapping in a hash map should read hotter again.
 
 Python and JavaScript drafts are stored separately for each library problem. The 20 most recently used problem drafts share a 2 MiB local browser budget. This early version does not track attempts or completion. Older local progress is discarded; drafts remain available.
 
@@ -69,7 +69,7 @@ All settings live in `.env`. The server reads it at startup, so restart after ch
 |---|---|---|---|
 | `AI_GATEWAY_API_KEY` | For AI features | none | Your Vercel AI Gateway key |
 | `PORT` | No | `3000` | Local port |
-| `TUTOR_MAP_MODEL` | No | `openai/gpt-5-mini` | Model that builds solution maps. It must support schema-enforced structured output through the Gateway. |
+| `TUTOR_MAP_MODEL` | No | `google/gemini-2.5-flash-lite` | Model that builds and reviews solution maps. It must support JSON-schema output through the Gateway. `openai/gpt-5-mini` produces more detailed maps but is slower and costs more. |
 
 ## How the Navigator works
 

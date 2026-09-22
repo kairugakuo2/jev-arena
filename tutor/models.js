@@ -1,9 +1,11 @@
-import { generateText, Output, experimental_evaluate as evaluate } from 'ai';
+import { generateText, Output, jsonSchema, experimental_evaluate as evaluate } from 'ai';
 import { graphSchema, critiqueSchema } from './schema.js';
 import { MAPMAKER_PROMPT, CRITIC_PROMPT, NAVIGATOR_PROMPT } from './prompts.js';
 import { validProbabilities } from '../public/tutor/scheduler.js';
+import { providerSchema } from './provider-schema.js';
 
-export const MAP_MODEL = process.env.TUTOR_MAP_MODEL || 'openai/gpt-5-mini';
+export const MAP_MODEL = process.env.TUTOR_MAP_MODEL || 'google/gemini-2.5-flash-lite';
+const mapOptions = MAP_MODEL === 'google/gemini-2.5-flash-lite' ? { reasoning:'none' } : {};
 
 function requireKey() {
   if (!process.env.AI_GATEWAY_API_KEY) throw Error('Add AI_GATEWAY_API_KEY to .env and restart the server.');
@@ -11,19 +13,19 @@ function requireKey() {
 
 export async function generateGraph({ statement, referenceMaterial, previous, issues = [] }) {
   requireKey();
-  const { output } = await generateText({ model: MAP_MODEL, system: MAPMAKER_PROMPT,
+  const { output } = await generateText({ model: MAP_MODEL, ...mapOptions, system: MAPMAKER_PROMPT,
     prompt: JSON.stringify({ problem: statement, ...(referenceMaterial ? { referenceMaterial } : {}), ...(previous ? { previousGraph: previous } : {}), repairIssues: issues }),
-    output: Output.object({ schema: graphSchema }), maxOutputTokens: 16000, maxRetries: 0,
-    abortSignal: AbortSignal.timeout(180000),
+    output: Output.object({ schema: jsonSchema(providerSchema(graphSchema)) }), maxOutputTokens: 8000, maxRetries: 0,
+    abortSignal: AbortSignal.timeout(45000),
   });
   return output;
 }
 
 export async function critiqueGraph({ statement, referenceMaterial, graph }) {
   requireKey();
-  const { output } = await generateText({ model: MAP_MODEL, system: CRITIC_PROMPT,
-    prompt: JSON.stringify({ problem: statement, ...(referenceMaterial ? { referenceMaterial } : {}), graph }), output: Output.object({ schema: critiqueSchema }),
-    maxOutputTokens: 4000, maxRetries: 0, abortSignal: AbortSignal.timeout(120000),
+  const { output } = await generateText({ model: MAP_MODEL, ...mapOptions, system: CRITIC_PROMPT,
+    prompt: JSON.stringify({ problem: statement, ...(referenceMaterial ? { referenceMaterial } : {}), graph }), output: Output.object({ schema: jsonSchema(providerSchema(critiqueSchema)) }),
+    maxOutputTokens: 1500, maxRetries: 0, abortSignal: AbortSignal.timeout(20000),
   });
   return output;
 }

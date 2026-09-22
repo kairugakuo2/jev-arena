@@ -139,35 +139,47 @@ export class NeetCodeImporter {
     Object.assign(this, { cacheDir, fetchImpl, now, timeoutMs });
   }
 
-  async import(slug) {
+  async import(slug, onPreview = () => {}) {
     const problem = this.catalog.get(slug);
     if (!problem) throw Error('Problem slug is not in the NeetCode catalog.');
     let cached;
     try { cached = validateCache(JSON.parse(await readFile(join(this.cacheDir, `${slug}.json`), 'utf8')), problem); }
     catch { cached = null; }
-    if (cached && this.now() - Date.parse(cached.fetchedAt) <= MAX_AGE_MS) return publicSource(cached, problem);
+    let previewed = false;
+    const preview = source => {
+      previewed = true;
+      onPreview({ slug:source.slug, url:source.url, fetchedAt:source.fetchedAt,
+        stale:source.stale, statement:source.statement, starterCode:source.starterCode });
+    };
+    if (cached && this.now() - Date.parse(cached.fetchedAt) <= MAX_AGE_MS) {
+      const source = publicSource(cached, problem); preview(source); return source;
+    }
     try {
-      const record = await this.fetchSource(problem, cached);
+      const record = await this.fetchSource(problem, cached, preview);
       await this.writeCache(record);
       return publicSource(record, problem);
     } catch (error) {
-      if (cached) return publicSource(cached, problem, true);
+      if (cached && !previewed) { const source = publicSource(cached, problem, true); preview(source); return source; }
       throw error;
     }
   }
 
-  async fetchSource(problem, cached) {
+  async fetchSource(problem, cached, onPreview) {
     const urls = sourceUrls(problem);
     const resources = {};
-    for (const [kind, url] of Object.entries(urls)) {
+    resources.question = await this.fetchResource('question', urls.question, cached?.resources?.question, problem);
+    const statement = extractDescription(resources.question.body,problem.sourceId);
+    const starterCode = extractStarterCode(resources.question.body, problem);
+    const fetchedAt = new Date(this.now()).toISOString();
+    onPreview?.({ slug:problem.slug, url:problem.questionUrl, fetchedAt, stale:false, statement, starterCode });
+    // Optional reference downloads never hold up the question or starter code.
+    await Promise.all(Object.entries(urls).filter(([kind]) => kind !== 'question').map(async ([kind, url]) => {
       try { resources[kind] = await this.fetchResource(kind, url, cached?.resources?.[kind], problem); }
       catch (error) {
-        if (kind === 'question' || error.code === 'SOURCE_POLICY') throw error;
+        if (error.code === 'SOURCE_POLICY') throw error;
         resources[kind] = null;
       }
-    }
-    const statement = extractDescription(resources.question.body,problem.sourceId);
-    extractStarterCode(resources.question.body, problem);
+    }));
     const references = [];
     const coverage = { article: false, python: false, javascript: false };
     for (const kind of ['python', 'javascript', 'article']) {
@@ -185,7 +197,7 @@ export class NeetCodeImporter {
     const referenceMaterial = references.join('\n');
     const hashes = { statement: hash(statement), reference: hash(referenceMaterial) };
     return {
-      version: 2, slug: problem.slug, sourceId:problem.sourceId, url: problem.questionUrl, fetchedAt: new Date(this.now()).toISOString(),
+      version: 2, slug: problem.slug, sourceId:problem.sourceId, url: problem.questionUrl, fetchedAt,
       statement, referenceMaterial, coverage, hashes,
       contentHash: hash(JSON.stringify([statement, hashes.reference, coverage])),
       sourceUrls: urls,
@@ -200,18 +212,30 @@ export class NeetCodeImporter {
     if (cached?.etag) headers['if-none-match'] = cached.etag;
     if (cached?.lastModified) headers['if-modified-since'] = cached.lastModified;
     for (let redirects = 0; redirects <= 2; redirects++) {
+      const result = await this.fetchOnce(kind, url, headers, cached, problem, redirects);
+      if (result.redirect) { url = result.redirect; continue; }
+      return result.resource;
+    }
+    throw Error('Source redirect failed.');
+  }
+
+  // A referenced timer (unlike AbortSignal.timeout) keeps the process alive until
+  // the abort fires, and covers both the request and the body download.
+  async fetchOnce(kind, url, headers, cached, problem, redirects) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new DOMException('Source request timed out.', 'TimeoutError')), this.timeoutMs);
+    try {
       let response;
-      const request = { redirect:'manual', headers, signal:AbortSignal.timeout(this.timeoutMs),
+      const request = { redirect:'manual', headers, signal:controller.signal,
         ...(kind === 'question' ? { method:'POST', body:JSON.stringify({ data:{ problemId:problem.sourceId } }) } : {}) };
       try { response = await this.fetchImpl(url, request); }
       catch (error) { throw Error(`Source fetch failed: ${error.message}`); }
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         if (redirects === 2) throw Error('Source redirected too many times.');
-        try { url = allowedUrl(new URL(response.headers.get('location') || '', url)); }
+        try { return { redirect:allowedUrl(new URL(response.headers.get('location') || '', url)) }; }
         catch (error) { error.code = 'SOURCE_POLICY'; throw error; }
-        continue;
       }
-      if (response.status === 304 && cached?.body) return cached;
+      if (response.status === 304 && cached?.body) return { resource:cached };
       if (!response.ok) throw Error(`Source returned HTTP ${response.status}.`);
       const type = (response.headers.get('content-type') || '').toLowerCase().split(';')[0].trim();
       if (!EXPECTED_TYPES[kind].includes(type)) throw Error(`Unexpected source content type for ${kind}.`);
@@ -226,9 +250,8 @@ export class NeetCodeImporter {
         chunks.push(value);
       }
       const body = Buffer.concat(chunks).toString('utf8');
-      return { url: String(url), etag: response.headers.get('etag'), lastModified: response.headers.get('last-modified'), hash: hash(body), body };
-    }
-    throw Error('Source redirect failed.');
+      return { resource:{ url: String(url), etag: response.headers.get('etag'), lastModified: response.headers.get('last-modified'), hash: hash(body), body } };
+    } finally { clearTimeout(timer); }
   }
 
   async writeCache(record) {

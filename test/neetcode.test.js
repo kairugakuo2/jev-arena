@@ -80,6 +80,29 @@ test('legacy static article extraction stops before details and excludes active 
   assert.doesNotMatch(statement,/SECRET_HINT|SECRET_SCRIPT|SOLUTION_UI/);
 });
 
+test('publishes safe starter preview before parallel optional reference downloads finish', async () => {
+  const cacheDir = await mkdtemp(join(tmpdir(), 'jev-preview-'));
+  const fetchImpl = await successfulFetch();
+  let release;
+  const waiting = new Promise(resolve => { release = resolve; });
+  const started = [];
+  let preview;
+  const importer = new NeetCodeImporter({ catalog:[item], cacheDir, fetchImpl:async (url, options) => {
+    if (String(url) !== urls.question) { started.push(String(url)); await waiting; }
+    return fetchImpl(url,options);
+  } });
+  const pending = importer.import(item.slug, value => { preview = value; });
+  while (started.length < 3) await new Promise(resolve => setImmediate(resolve));
+  assert.match(preview.statement,/Given an array/);
+  assert.match(preview.starterCode.python,/class Solution/);
+  assert.doesNotMatch(JSON.stringify(preview),/hidden reference|referenceMaterial|SECRET|coverage|resources/);
+  release(); await pending;
+  let cachedPreview;
+  await importer.import(item.slug, value => { cachedPreview = value; });
+  assert.equal(started.length,3);
+  assert.deepEqual(cachedPreview.starterCode,preview.starterCode);
+});
+
 test('rejects unknown slugs, foreign redirects, wrong content types, and oversized bodies', async () => {
   const cacheDir = await mkdtemp(join(tmpdir(), 'jev-neetcode-'));
   let calls = 0;

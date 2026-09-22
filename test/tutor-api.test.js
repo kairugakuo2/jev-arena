@@ -122,3 +122,46 @@ test('custom preparation remains compatible and imported failures are attributed
   assert.equal(failure.body.source.url, 'https://neetcode.io/problems/two-integer-sum');
   assert.doesNotMatch(JSON.stringify(failure.body), /secret upstream/);
 });
+
+test('question preview is available before references/maps and survives a sanitized feedback failure', async () => {
+  let finishImport;
+  const imported = new Promise(resolve => { finishImport = resolve; });
+  const safe = { statement:'Visible question', starterCode:{python:'class Solution: pass'}, url:'https://neetcode.io/problems/a' };
+  const handler = createTutorHandler({ catalog:[{slug:'a',title:'A',questionUrl:safe.url}],
+    importer:{ import:async (_slug,preview) => { preview({...safe,referenceMaterial:'PRIVATE'}); await imported; return {...safe,referenceMaterial:'PRIVATE'}; } },
+    store:{idFor:()=> 'a'.repeat(64), get:async()=>{throw Error('missing');}, prepare:async()=>{throw Error('SECRET');}} });
+  const start = await call(handler,'POST','/api/tutor/problems',{source:'neetcode',slug:'a'});
+  const path = `/api/tutor/problems/${start.body.problemId}`;
+  const preview = (await call(handler,'GET',path)).body;
+  assert.equal(preview.status,'importing');
+  assert.equal(preview.preview.statement,safe.statement);
+  assert.deepEqual(preview.preview.source.starterCode,safe.starterCode);
+  assert.doesNotMatch(JSON.stringify(preview),/PRIVATE|referenceMaterial/);
+  finishImport(); await new Promise(resolve=>setImmediate(resolve));
+  const failed = (await call(handler,'GET',path)).body;
+  assert.equal(failed.status,'failed');
+  assert.deepEqual(failed.preview,preview.preview);
+  assert.doesNotMatch(JSON.stringify(failed),/PRIVATE|SECRET/);
+});
+
+test('uncached graphs queue serially, deduplicate, and never block cached problems', async () => {
+  const first = 'First question with enough detail to be a valid custom statement.';
+  const second = 'Second question with enough detail to be a valid custom statement.';
+  const cached = 'Cached question with enough detail to be a valid custom statement.';
+  const ids = new Map([[first,'a'.repeat(64)],[second,'b'.repeat(64)],[cached,'c'.repeat(64)]]);
+  const pending = [];
+  const handler = createTutorHandler({ store:{ idFor:s=>ids.get(s),
+    get:async id=>{if(id===ids.get(cached))return {problemId:id}; throw Error('missing');}, metadata:r=>r,
+    prepare:(s,progress)=>{progress('generating');return new Promise(resolve=>pending.push(()=>resolve({problemId:ids.get(s)})));} } });
+  await call(handler,'POST','/api/tutor/problems',{statement:first});
+  const queued = await call(handler,'POST','/api/tutor/problems',{statement:second});
+  assert.equal(queued.status,202); assert.equal(queued.body.preview.statement,second);
+  await call(handler,'POST','/api/tutor/problems',{statement:second});
+  assert.equal(pending.length,1);
+  assert.equal((await call(handler,'GET',`/api/tutor/problems/${ids.get(second)}`)).body.status,'queued');
+  assert.equal((await call(handler,'POST','/api/tutor/problems',{statement:cached})).status,200);
+  pending[0](); await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(pending.length,2);
+  pending[1](); await new Promise(resolve=>setImmediate(resolve));
+  assert.equal((await call(handler,'GET',`/api/tutor/problems/${ids.get(second)}`)).body.status,'ready');
+});

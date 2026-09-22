@@ -16,3 +16,4 @@ main{max-width:1720px;margin:auto;padding:36px}.heading{margin-bottom:28px}h1{fo
 @media(max-width:680px){.catalog-results{max-height:330px}.catalog-filters{grid-template-columns:1fr}.search-field{grid-column:auto}.problem-choice{min-height:52px}.entry-tab{flex:1}.ready-heading{align-items:flex-start;flex-direction:column}}
 
 .editor-panel{position:relative}.editor-gate{position:absolute;inset:49px 0 64px;z-index:2;display:grid;place-items:center;padding:28px;text-align:center;background:rgba(15,20,16,.94);color:var(--text);font-size:15px;line-height:1.5}.editor-panel:has(.editor-gate:not([hidden])) .language-label select{opacity:.5;pointer-events:none}
+.difficulty-easy{color:#86efac;border-color:#326348;background:#182d21}.difficulty-medium{color:#fde047;border-color:#6b5e2a;background:#302a16}.difficulty-hard{color:#fca5a5;border-color:#784040;background:#331e20}

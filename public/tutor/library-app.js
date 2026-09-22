@@ -17,9 +17,10 @@ Constraints
 2 <= nums.length <= 10000
 Exactly one valid answer exists.`;
 
-let problem = null, activeCatalogProblem = null, catalog = [], language = 'python';
+let problem = null, loadedProblem = null, activeCatalogProblem = null, catalog = [], language = 'python';
 let target = null, displayed = 50, frame = 0, lastFrame = null;
 let preparing = false, preparingId = null, pollTimer = null, composing = false, restoring = false;
+let loadGeneration = 0, preparationBody = null, pollFailures = 0;
 const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 const measurements = [];
 const localState = new TutorLocalStore();
@@ -64,7 +65,7 @@ function animate(now) {
 function moveMeter() { if (!frame && !document.hidden) frame = requestAnimationFrame(animate); }
 function clearMeter() {
   cancelAnimationFrame(frame); frame = 0; lastFrame = null; target = null; displayed = 50;
-  $('heat-meter').classList.add('unmeasured'); $('direction').textContent = problem ? 'Waiting for your first edits' : 'Choose a problem to begin';
+  $('heat-meter').classList.add('unmeasured'); $('direction').textContent = problem ? 'Waiting for your first edits' : loadedProblem ? 'Jev is preparing feedback' : 'Choose a problem to begin';
   $('measured').textContent = 'No reading yet'; $('meter').removeAttribute('aria-valuenow'); paint();
 }
 
@@ -72,7 +73,7 @@ const statusLabels = { inactive:'Choose a problem to begin', ready:'Ready for yo
 const scheduler = new TutorScheduler({
   request: body => api('/api/tutor/evaluate',body),
   onStatus: info => {
-    $('live-label').textContent = statusLabels[info.state]; $('live-state').dataset.state = info.state;
+    $('live-label').textContent = info.state === 'inactive' && loadedProblem ? 'You can code while feedback gets ready' : statusLabels[info.state]; $('live-state').dataset.state = info.state;
     $('feedback-error').textContent = info.state === 'unavailable' ? info.message || 'Reading unavailable.' : info.state === 'too_large' ? 'Shorten the file below 64 KiB to resume evaluation.' : '';
     $('revision-info').textContent = `Current ${info.revision ?? 0} · evaluated ${info.evaluatedRevision ?? 0}`;
   },
@@ -92,7 +93,7 @@ const scheduler = new TutorScheduler({
 });
 
 function draftScope() { return activeCatalogProblem ? `neetcode:${activeCatalogProblem.slug}` : 'custom'; }
-function saveDraft() { localState.saveDraft(draftScope(),language,editor.code()); $('save-state').textContent = 'Draft saved locally'; }
+function saveDraft() { if (!loadedProblem) return; localState.saveDraft(draftScope(),language,editor.code()); $('save-state').textContent = 'Draft saved locally'; }
 function setEditorCode(code) {
   restoring = true; editor.view.dispatch({ changes:{ from:0,to:editor.view.state.doc.length,insert:code }, selection:{ anchor:code.length } }); restoring = false;
 }
@@ -105,10 +106,11 @@ function setEditorReady(ready, message = 'Choose a problem to load its starter c
 }
 function restoreDraft() {
   const code = localState.draft(draftScope(),language);
-  const initial = activeCatalogProblem ? starterFor(problem?.source?.starterCode,language) : starter[language];
+  const initial = initialCode();
   const usableDraft = typeof code === 'string' && utf8Bytes(code) <= MAX_CODE_BYTES && !(activeCatalogProblem && isUntouchedLegacyDraft(code,language));
   setEditorCode(usableDraft ? code : initial || starter[language]);
 }
+function initialCode() { return starterFor(loadedProblem?.source?.starterCode,language) || starter[language]; }
 
 const editor = createCodeEditor({ parent:$('editor'), nonce:document.querySelector('meta[name="style-nonce"]').content, doc:starter.python,
   onChange:(code,changes) => {
@@ -118,9 +120,10 @@ const editor = createCodeEditor({ parent:$('editor'), nonce:document.querySelect
   onSelection:({line,column}) => { $('cursor-position').textContent = `Ln ${line}, Col ${column}`; },
 });
 
-function newSession() {
+function newSession(baseline = editor.code()) {
   clearMeter();
-  scheduler.reset(problem ? { problemId:problem.problemId, graphVersion:problem.graphVersion, language, sessionId:crypto.randomUUID() } : null,editor.code());
+  scheduler.reset(problem ? { problemId:problem.problemId, graphVersion:problem.graphVersion, language, sessionId:crypto.randomUUID() } : null,baseline);
+  if (problem && editor.code() !== baseline) scheduler.edit(editor.code(),[{ from:0,to:baseline.length,insert:editor.code() }]);
   $('graph-info').textContent = problem ? `${problem.model || 'Jev map'} · ${problem.graphVersion}` : 'No graph active';
 }
 function setProblemStatus(message, role = 'status') { $('problem-status').textContent = message; $('problem-status').setAttribute('role',role); }
@@ -144,7 +147,7 @@ function renderCatalog() {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'problem-choice';
       const title = document.createElement('span'); title.className = 'problem-choice-title'; title.textContent = `${entry.order}. ${entry.title}`;
       const meta = document.createElement('span'); meta.className = 'problem-meta';
-      const difficulty = document.createElement('span'); difficulty.className = 'difficulty'; difficulty.textContent = entry.difficulty;
+      const difficulty = document.createElement('span'); difficulty.className = `difficulty difficulty-${entry.difficulty.toLowerCase()}`; difficulty.textContent = entry.difficulty;
       meta.append(difficulty); button.append(title,meta); button.setAttribute('aria-label',`${entry.title}, ${entry.difficulty}`);
       button.addEventListener('click',() => selectCatalogProblem(entry)); section.append(button);
     }
@@ -154,8 +157,9 @@ function renderCatalog() {
   $('surprise-problem').disabled = !filtered.length;
 }
 
-function activate(metadata) {
-  problem = metadata; preparing = false; preparingId = null; $('prepare').disabled = false; $('prepare').textContent = 'Prepare custom problem';
+function showPreview(metadata) {
+  if (loadedProblem) return;
+  loadedProblem = metadata;
   $('problem-title').textContent = metadata.title || activeCatalogProblem?.title || metadata.statement.split('\n')[0]; $('problem-text').textContent = metadata.statement;
   document.querySelector('.entry-tabs').hidden = true; $('library-pane').hidden = true; $('custom-pane').hidden = true; $('problem-ready').hidden = false;
   const imported = metadata.source?.kind === 'neetcode';
@@ -168,63 +172,98 @@ function activate(metadata) {
   }
   restoreDraft();
   setEditorReady(true);
-  setProblemStatus(metadata.source?.stale ? 'Ready from private cache; source refresh was unavailable.' : 'Reference ready.'); newSession();
+  $('cancel-preparation').hidden = true;
+  newSession();
+}
+function activate(metadata) {
+  showPreview(metadata);
+  problem = metadata; preparing = false; preparingId = null;
+  $('prepare').disabled = false; $('prepare').textContent = 'Prepare custom problem'; $('retry-feedback').hidden = true;
+  setProblemStatus(metadata.source?.stale ? 'Ready from saved source; a refresh was unavailable.' : 'Jev is ready. Your edits now receive live feedback.');
+  // Include code written during preparation instead of resetting it away.
+  newSession(initialCode());
 }
 function preparationFailed(error, source) {
   preparing = false; preparingId = null; $('prepare').disabled = false; $('prepare').textContent = 'Try preparing again'; setProblemStatus(error.message || 'Preparation failed.','alert');
-  setEditorReady(false,'Preparation failed. Try again or choose another problem.');
+  $('retry-feedback').hidden = false; $('retry-feedback').textContent = loadedProblem ? 'Retry Jev feedback' : 'Retry loading problem';
+  if (!loadedProblem) setEditorReady(false,'The problem could not load. Retry or choose another question.');
+  $('direction').textContent = loadedProblem ? 'Feedback unavailable' : 'Problem unavailable';
+  $('live-label').textContent = loadedProblem ? 'Your code is saved. Retry when ready.' : 'Retry loading the problem';
   if (source?.url) {
     const link = document.createElement('a'); link.href = source.url; link.target = '_blank'; link.rel = 'noreferrer'; link.textContent = 'Open the attributed problem on NeetCode';
     $('problem-status').append(document.createElement('br'),link);
   }
 }
-async function pollProblem() {
-  if (!preparingId) return;
+function cancelPreparation() {
+  clearTimeout(pollTimer); loadGeneration++; preparing = false; preparingId = null; pollFailures = 0;
+}
+function preparationStatus(result) {
+  if (result.preview) showPreview(result.preview);
+  if (result.status === 'ready') { activate(result); return true; }
+  if (result.status === 'failed') { preparationFailed(Error(result.error),result.source); return true; }
+  const labels = { importing:loadedProblem ? 'Problem loaded. Preparing Jev feedback…' : 'Loading question and starter code…', queued:'You can start coding. Jev feedback is queued…', mapping_approaches:'You can start coding. Preparing Jev feedback…', reviewing_reference:'You can start coding. Checking Jev feedback…', repairing:'You can start coding. Refining Jev feedback…' };
+  setProblemStatus(labels[result.status] || 'Preparing Jev feedback…');
+  return false;
+}
+async function pollProblem(generation = loadGeneration) {
+  if (!preparingId || generation !== loadGeneration) return;
   try {
     const result = await api(`/api/tutor/problems/${preparingId}`);
-    if (result.status === 'ready') { activate(result); return; }
-    if (result.status === 'failed') { preparationFailed(Error(result.error),result.source); return; }
-    const labels = { importing:'Importing source…', mapping_approaches:'Mapping approaches…', reviewing_reference:'Reviewing reference…', generating:'Mapping approaches…', reviewing:'Reviewing correctness…', repairing:'Refining the reference graph…' };
-    setProblemStatus(labels[result.status] || 'Preparing…'); pollTimer = setTimeout(pollProblem,1500);
-  } catch (error) { preparationFailed(error); }
+    if (generation !== loadGeneration) return;
+    pollFailures = 0;
+    if (preparationStatus(result)) return;
+    pollTimer = setTimeout(() => pollProblem(generation),1000);
+  } catch (error) {
+    if (generation !== loadGeneration) return;
+    if (error.retryable !== false && ++pollFailures <= 3) {
+      setProblemStatus('Connection interrupted. Reconnecting to Jev…');
+      pollTimer = setTimeout(() => pollProblem(generation),1000 * pollFailures);
+    } else preparationFailed(error);
+  }
 }
 async function beginPreparation(body) {
-  if (preparing) return;
-  preparing = true; problem = null; newSession(); $('prepare').disabled = true;
-  setProblemStatus(body.source === 'neetcode' ? 'Importing source…' : 'Mapping approaches…');
+  cancelPreparation(); const generation = loadGeneration; preparationBody = body;
+  preparing = true; problem = null; newSession(); $('prepare').disabled = true; $('retry-feedback').hidden = true;
+  $('cancel-preparation').hidden = Boolean(loadedProblem);
+  setProblemStatus(body.source === 'neetcode' ? 'Loading question and starter code…' : 'Preparing Jev feedback…');
   try {
     const result = await api('/api/tutor/problems',body);
-    if (result.status === 'ready') activate(result); else { preparingId = result.problemId; pollProblem(); }
-  } catch (error) { preparationFailed(error); }
+    if (generation !== loadGeneration) return;
+    if (!preparationStatus(result)) { preparingId = result.problemId; pollProblem(generation); }
+  } catch (error) { if (generation === loadGeneration) preparationFailed(error); }
 }
 function selectCatalogProblem(entry) {
-  if (preparing) return;
-  clearTimeout(pollTimer); if (problem) saveDraft(); activeCatalogProblem = entry; problem = null;
+  saveDraft(); cancelPreparation(); activeCatalogProblem = entry; problem = null; loadedProblem = null;
   setEditorCode(starter[language]); setEditorReady(false,'Loading this problem and its starter code…'); newSession(); renderCatalog(); $('problem-title').textContent = entry.title;
   beginPreparation({ source:'neetcode', slug:entry.slug });
 }
 
 $('problem-input').value = safeGet('jev-tutor-custom-statement') || customSample;
 $('problem-form').addEventListener('submit',event => {
-  event.preventDefault(); if (problem) saveDraft(); activeCatalogProblem = null; setEditorReady(false,'Preparing your custom problem…');
+  event.preventDefault(); saveDraft(); cancelPreparation(); activeCatalogProblem = null; loadedProblem = null; problem = null; setEditorReady(false,'Preparing your custom problem…');
   safeSet('jev-tutor-custom-statement',$('problem-input').value); beginPreparation({ statement:$('problem-input').value });
 });
 $('library-tab').addEventListener('click',() => showEntry('library')); $('custom-tab').addEventListener('click',() => showEntry('custom'));
-$('change-problem').addEventListener('click',() => {
-  saveDraft(); problem = null; setEditorReady(false); newSession(); document.querySelector('.entry-tabs').hidden = false; $('problem-ready').hidden = true;
+function chooseAnotherProblem() {
+  saveDraft(); cancelPreparation(); problem = null; loadedProblem = null; preparationBody = null;
+  $('retry-feedback').hidden = true; $('cancel-preparation').hidden = true; $('prepare').disabled = false;
+  setEditorReady(false); newSession(); document.querySelector('.entry-tabs').hidden = false; $('problem-ready').hidden = true;
   showEntry(activeCatalogProblem ? 'library' : 'custom'); setProblemStatus(activeCatalogProblem ? 'Choose a NeetCode 150 problem.' : 'Paste the full statement and constraints.');
-});
+}
+$('change-problem').addEventListener('click',chooseAnotherProblem);
+$('cancel-preparation').addEventListener('click',chooseAnotherProblem);
+$('retry-feedback').addEventListener('click',() => { if (preparationBody) beginPreparation(preparationBody); });
 $('language').addEventListener('change',() => {
-  saveDraft(); language = $('language').value; editor.setLanguage(language); $('filename').textContent = language === 'python' ? 'solution.py' : 'solution.js'; restoreDraft(); newSession();
+  saveDraft(); language = $('language').value; editor.setLanguage(language); $('filename').textContent = language === 'python' ? 'solution.py' : 'solution.js'; restoreDraft(); newSession(initialCode());
 });
 for (const id of ['catalog-search','pattern-filter','difficulty-filter']) $(id).addEventListener(id === 'catalog-search' ? 'input' : 'change',renderCatalog);
 $('surprise-problem').addEventListener('click',() => { const choice = surpriseProblem(catalog,filters()); if (choice) selectCatalogProblem(choice); else $('surprise-empty').hidden = false; });
-$('reset-signal').addEventListener('click',newSession);
+$('reset-signal').addEventListener('click',() => newSession());
 editor.view.contentDOM.addEventListener('compositionstart',() => { composing = true; scheduler.setPaused(true); });
 editor.view.contentDOM.addEventListener('compositionend',() => { composing = false; scheduler.setPaused(document.hidden); });
 document.addEventListener('visibilitychange',() => { scheduler.setPaused(document.hidden || composing); if (document.hidden) { cancelAnimationFrame(frame); frame = 0; lastFrame = null; } else moveMeter(); });
 reduced.addEventListener('change',moveMeter);
-window.addEventListener('pagehide',() => { scheduler.setPaused(true); clearTimeout(pollTimer); pollTimer = null; cancelAnimationFrame(frame); });
+window.addEventListener('pagehide',() => { scheduler.setPaused(true); clearTimeout(pollTimer); pollTimer = null; cancelAnimationFrame(frame); frame = 0; lastFrame = null; });
 window.addEventListener('pageshow',event => {
   if (!event.persisted) return;
   scheduler.setPaused(document.hidden || composing);
@@ -236,6 +275,6 @@ setEditorReady(false); newSession();
 api('/api/tutor/catalog').then(result => {
   catalog = result.problems;
   for (const pattern of [...new Set(catalog.map(entry => entry.pattern))]) { const option = document.createElement('option'); option.value = option.textContent = pattern; $('pattern-filter').append(option); }
-  renderCatalog(); setProblemStatus('Choose a problem. Source content is imported only after selection.');
+  renderCatalog(); if (!preparing && !loadedProblem) setProblemStatus('Choose a problem. Source content is imported only after selection.');
 }).catch(() => { setProblemStatus('The NeetCode catalog is unavailable. Use the Custom tab.','alert'); });
 fetch('/api/status').then(response => response.json()).then(status => { $('connection').textContent = status.configured ? 'Gateway connected' : 'Gateway key missing'; }).catch(() => { $('connection').textContent = 'Server unavailable'; });

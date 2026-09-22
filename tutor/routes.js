@@ -25,7 +25,30 @@ async function readJson(req, limit = 524288) {
 export function createTutorHandler({ store = new GraphStore(), evaluate = evaluateCode, catalog = NEETCODE_CATALOG, importer = new NeetCodeImporter({ catalog }) } = {}) {
   const jobs = new Map(), sessions = new Set();
   const catalogBySlug = new Map(catalog.map(problem => [problem.slug, problem]));
-  let generating = false;
+  let preparationTail = Promise.resolve();
+  const activeJob = job => !['failed','ready'].includes(job.status);
+  function reserveJob(id, initial) {
+    if ([...jobs.values()].filter(activeJob).length >= 8) return false;
+    if (jobs.size >= 32) {
+      const expired = [...jobs].find(([,job]) => !activeJob(job));
+      if (expired) jobs.delete(expired[0]);
+    }
+    jobs.set(id, initial);
+    return true;
+  }
+  function updateJob(id, patch) { jobs.set(id, { ...jobs.get(id), ...patch }); }
+  function prepareInOrder(id, statement, options) {
+    updateJob(id,{ status:'queued' });
+    const work = preparationTail.then(() => store.prepare(statement, status => updateJob(id,{
+      status:status === 'reviewing' ? 'reviewing_reference' : status === 'repairing' ? 'repairing' : 'mapping_approaches',
+    }), options));
+    preparationTail = work.catch(() => {});
+    return work;
+  }
+  function sourceMetadata(problem, imported) {
+    return { kind:'neetcode', slug:problem.slug, url:imported.url || problem.questionUrl,
+      fetchedAt:imported.fetchedAt, stale:imported.stale, starterCode:imported.starterCode };
+  }
   return async (req, res, path) => {
     if (!path.startsWith('/api/tutor/')) return false;
     try {
@@ -41,25 +64,28 @@ export function createTutorHandler({ store = new GraphStore(), evaluate = evalua
           if (jobs.has(jobId) && !['failed','ready'].includes(jobs.get(jobId).status)) {
             json(res,202,{ problemId:jobId, status:jobs.get(jobId).status }); return true;
           }
-          if (generating) { json(res,429,{ error:'Another problem is being prepared. Please wait.' }); return true; }
-          generating = true;
-          jobs.set(jobId,{ status:'importing' });
+          if (!reserveJob(jobId,{ status:'importing' })) { json(res,429,{ error:'Several problems are already preparing. Please try again shortly.' }); return true; }
           (async () => {
             try {
-              const imported = await importer.import(problem.slug);
-              const source = { kind:'neetcode', slug:problem.slug, url:imported.url || problem.questionUrl, fetchedAt:imported.fetchedAt, stale:imported.stale,
-                starterCode:imported.starterCode };
+              const publishPreview = imported => updateJob(jobId,{ preview:{ title:problem.title,
+                statement:imported.statement, source:sourceMetadata(problem,imported) } });
+              const imported = await importer.import(problem.slug, publishPreview);
+              publishPreview(imported);
+              const source = sourceMetadata(problem,imported);
               const problemId = store.idFor(imported.statement, { referenceMaterial:imported.referenceMaterial });
               try {
                 jobs.set(jobId,{ status:'ready', ...store.metadata(await store.get(problemId)), source });
               } catch {
-                const metadata = await store.prepare(imported.statement, status => jobs.set(jobId,{ status:status === 'reviewing' ? 'reviewing_reference' : 'mapping_approaches' }),
-                  { referenceMaterial:imported.referenceMaterial, source });
-                jobs.set(jobId,{ status:'ready', ...metadata });
+                const metadata = await prepareInOrder(jobId, imported.statement, { referenceMaterial:imported.referenceMaterial, source });
+                jobs.set(jobId,{ status:'ready', ...metadata, source });
               }
             } catch {
-              jobs.set(jobId,{ status:'failed', error:'NeetCode source import or problem preparation failed. Try again, or use the Custom tab.', source:{ kind:'neetcode', slug:problem.slug, url:problem.questionUrl } });
-            } finally { generating = false; }
+              const hasPreview = Boolean(jobs.get(jobId)?.preview);
+              updateJob(jobId,{ status:'failed', error:hasPreview
+                ? 'The problem is open, but Jev feedback could not be prepared. Keep coding or retry feedback.'
+                : 'NeetCode could not load this problem. Try again, or use the Custom tab.',
+                source:{ kind:'neetcode', slug:problem.slug, url:problem.questionUrl } });
+            }
           })();
           json(res,202,{ problemId:jobId, status:'importing' }); return true;
         }
@@ -71,16 +97,14 @@ export function createTutorHandler({ store = new GraphStore(), evaluate = evalua
         if (jobs.has(problemId) && !['failed','ready'].includes(jobs.get(problemId).status)) {
           json(res,202,{ problemId, status: jobs.get(problemId).status }); return true;
         }
-        if (generating) { json(res,429,{ error:'Another problem is being prepared. Please wait.' }); return true; }
-        if (jobs.size >= 32) jobs.delete(jobs.keys().next().value);
-        generating = true;
-        jobs.set(problemId,{ status:'generating' });
-        store.prepare(input.statement, status => jobs.set(problemId,{ status })).then(metadata => {
+        const preview = { statement:input.statement, title:input.statement.split('\n')[0] };
+        if (!reserveJob(problemId,{ status:'queued', preview })) { json(res,429,{ error:'Several problems are already preparing. Please try again shortly.' }); return true; }
+        prepareInOrder(problemId,input.statement,{}).then(metadata => {
           jobs.set(problemId,{ status:'ready', ...metadata });
         }).catch(() => {
-          jobs.set(problemId,{ status:'failed', error:'Problem preparation failed or did not pass review. Check Gateway access and the problem statement, then retry.' });
-        }).finally(() => { generating = false; });
-        json(res,202,{ problemId, status:'generating' }); return true;
+          updateJob(problemId,{ status:'failed', error:'Jev feedback could not be prepared. Check Gateway access and the problem statement, then retry.' });
+        });
+        json(res,202,{ problemId, status:'queued', preview }); return true;
       }
       const match = path.match(/^\/api\/tutor\/problems\/([a-f0-9]{64})$/);
       if (req.method === 'GET' && match) {

@@ -1,5 +1,15 @@
 # Version history
 
+## 5.3.0 — Faster problem loading
+
+- Questions and starter code now appear as soon as they're imported (under a second), and you can start coding while Jev builds its solution map in the background. Edits made during preparation are included in the first reading.
+- Optional reference downloads run in parallel and no longer delay the question.
+- Problem preparation is queued instead of rejected while another problem is preparing.
+- Switched the default mapmaker to `google/gemini-2.5-flash-lite` with a more compact map. First-time preparation dropped from about 90 seconds to about 20.
+- Added Retry feedback and Choose another problem controls when preparation fails.
+- Library difficulty badges are color-coded: green for Easy, yellow for Medium, red for Hard.
+- Fixed importer timeouts that could let the test process exit early.
+
 ## 5.2.0 — Starter code and clearer live readings
 
 - Library problems now open with NeetCode's Python or JavaScript starter signatures and a short writing prompt.
