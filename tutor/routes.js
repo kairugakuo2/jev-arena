@@ -47,7 +47,8 @@ export function createTutorHandler({ store = new GraphStore(), evaluate = evalua
   }
   function sourceMetadata(problem, imported) {
     return { kind:'neetcode', slug:problem.slug, url:imported.url || problem.questionUrl,
-      fetchedAt:imported.fetchedAt, stale:imported.stale, starterCode:imported.starterCode };
+      fetchedAt:imported.fetchedAt, stale:imported.stale, starterCode:imported.starterCode,
+      ...(Array.isArray(imported.display) ? { display:imported.display } : {}) };
   }
   return async (req, res, path) => {
     if (!path.startsWith('/api/tutor/')) return false;

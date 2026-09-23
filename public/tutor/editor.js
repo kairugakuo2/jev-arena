@@ -20,7 +20,7 @@ export function createCodeEditor({ parent, language = 'python', doc = '', nonce 
     // Prec.highest so these colors win over oneDark's own background rules.
     Prec.highest(EditorView.theme({
       '&': { height: '100%', fontSize: '14px', backgroundColor: '#12131f' },
-      '.cm-scroller': { fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace', lineHeight: '1.75', overflow: 'auto' },
+      '.cm-scroller': { fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace', lineHeight: '1.75', overflow: 'auto', fontFeatureSettings: '"liga" 0, "calt" 0' },
       '.cm-content': { padding: '18px 0', caretColor: '#a5b4fc' },
       '.cm-cursor, .cm-dropCursor': { borderLeftColor: '#a5b4fc', borderLeftWidth: '2px' },
       '.cm-line': { padding: '0 20px 0 12px' },

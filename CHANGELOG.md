@@ -9,6 +9,11 @@
 - Arena: recolored fighters, a proper segmented opponent switch, sentence-case move names and plain-text key hints instead of symbol glyphs.
 - Navigator: light problem library and direction panel around a dark editor. Fixed the One Dark theme overriding the editor's own colors.
 - Added a favicon, served fonts and images with correct content types, and checked text contrast and keyboard focus on every page.
+- Light and dark themes with a toggle in the top bar. Follows the system setting until you choose, then remembers it. Screenshots on the home page and in the README switch with the theme.
+- Problem statements are now formatted like LeetCode: inline code, bold and italic text, example blocks with highlighted Input/Output labels, and constraint lists. The server turns NeetCode's Markdown into safe display blocks; pasted problems get a lighter plain-text formatter.
+- Code shows `!=`, `==` and `->` as typed instead of as ligatures.
+- Arena: jumps are scaled to the stage height, so fighters no longer get their heads cut off at the top of the stage.
+- Phone nav collapses the Gateway status to a dot so the theme button always fits.
 
 ## 5.3.0 — Faster problem loading
 

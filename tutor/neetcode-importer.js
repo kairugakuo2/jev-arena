@@ -1,3 +1,4 @@
+import { formatStatement } from './statement-format.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -77,6 +78,11 @@ export function extractDescription(body, expectedId) {
   return statement;
 }
 
+// Structured, browser-safe version of the visible description (see statement-format.js).
+function extractDisplay(body) {
+  try { return formatStatement(JSON.parse(body)?.data?.description ?? ''); } catch { return []; }
+}
+
 function extractStarterCode(body, problem) {
   let data;
   try { data = JSON.parse(body)?.data; } catch { throw Error('NeetCode starter code was malformed.'); }
@@ -124,6 +130,7 @@ function publicSource(record, problem, stale = false) {
     statement: record.statement, referenceMaterial: record.referenceMaterial,
     coverage: record.coverage, contentHash: record.contentHash,
     starterCode: extractStarterCode(record.resources.question.body, problem),
+    display: extractDisplay(record.resources.question.body),
   };
 }
 
@@ -149,7 +156,7 @@ export class NeetCodeImporter {
     const preview = source => {
       previewed = true;
       onPreview({ slug:source.slug, url:source.url, fetchedAt:source.fetchedAt,
-        stale:source.stale, statement:source.statement, starterCode:source.starterCode });
+        stale:source.stale, statement:source.statement, starterCode:source.starterCode, display:source.display });
     };
     if (cached && this.now() - Date.parse(cached.fetchedAt) <= MAX_AGE_MS) {
       const source = publicSource(cached, problem); preview(source); return source;
@@ -171,7 +178,8 @@ export class NeetCodeImporter {
     const statement = extractDescription(resources.question.body,problem.sourceId);
     const starterCode = extractStarterCode(resources.question.body, problem);
     const fetchedAt = new Date(this.now()).toISOString();
-    onPreview?.({ slug:problem.slug, url:problem.questionUrl, fetchedAt, stale:false, statement, starterCode });
+    onPreview?.({ slug:problem.slug, url:problem.questionUrl, fetchedAt, stale:false, statement, starterCode,
+      display:extractDisplay(resources.question.body) });
     // Optional reference downloads never hold up the question or starter code.
     await Promise.all(Object.entries(urls).filter(([kind]) => kind !== 'question').map(async ([kind, url]) => {
       try { resources[kind] = await this.fetchResource(kind, url, cached?.resources?.[kind], problem); }

@@ -156,12 +156,16 @@ for (const [control, label, container] of [
   button.addEventListener("blur", () => held.delete(token));
   $(container).append(button);
 }
+// Peak jump height in game units (v² / 2g), used to keep jumps inside the stage.
+const MAX_JUMP = RULES.jumpSpeed ** 2 / (2 * RULES.gravity);
 function renderActors() {
+  // Floor is 45px up; leave room for the 145px fighter plus a little headroom.
+  const lift = Math.max(24, ($("stage").clientHeight - 45 - 155) / MAX_JUMP);
   for (const actor of ["player", "ai"]) {
     const f = game[actor],
       avatar = document.querySelector(".avatar-" + actor);
     avatar.style.left = `${8 + (f.x / RULES.width) * 84}%`;
-    avatar.style.bottom = `${45 + f.y * 62}px`;
+    avatar.style.bottom = `${45 + f.y * lift}px`;
     avatar.classList.toggle("guarding", f.defending);
     avatar.classList.toggle(
       "striking",

@@ -4,7 +4,10 @@
 
 Both run on [`typesafe-ai/jev`](https://vercel.com/kb/guide/typesafe-jev-and-ai-sdk), a model on the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) that answers multiple-choice questions with a probability for each option. Jev Lab puts those probabilities on screen so you can see what the model chose and how confident it was. Everything runs on your machine through one small Node server, and your API key never reaches the browser.
 
-![Coding Navigator: a hash-map Two Sum solution in the dark editor, with the meter reading 100% and "Much hotter"](public/images/navigator.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="public/images/navigator-dark.png">
+  <img src="public/images/navigator.png" alt="Coding Navigator: the Two Sum problem with formatted examples on the left, a Python hash-map solution in the dark editor, and the direction meter reading 100%, much hotter">
+</picture>
 
 ## Projects
 
@@ -12,15 +15,24 @@ Both run on [`typesafe-ai/jev`](https://vercel.com/kb/guide/typesafe-jev-and-ai-
 
 Choose from the built-in NeetCode 150 library or paste a custom problem, then write a solution in Python or JavaScript. Search and filter the library by pattern and difficulty; **Surprise me** picks a problem inside your active filters. Imported problems open with NeetCode's starter class, method signature and parameters already in the editor. As you type, Jev rates the direction of recent edits from **much colder** through **much hotter**. It never shows you the answer, and your code is never run.
 
+Problems read like they do on LeetCode: inline code, bold and italic text, example blocks with highlighted **Input** and **Output** labels, and a constraints list. You can start typing as soon as the question appears, while Jev prepares its feedback in the background.
+
 Behind the scenes, a larger model first maps the problem's solution space: brute-force, acceptable and optimal approaches, the partial steps between them, and common dead ends. Jev then compares each batch of your edits against that map. See [How the Navigator works](#how-the-navigator-works).
 
 ### AI Gladiator (`/arena`)
 
 A real-time 2D fight. About twice a second Jev reads both fighters' position, speed, stamina and cooldowns, then picks one of 12 moves. A side panel shows the probability it gave each one. A built-in rule-based opponent works without an API key.
 
-![AI Gladiator: two fighters in the arena, with the decision panel listing a probability for each of the 12 moves](public/images/arena.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="public/images/arena-dark.png">
+  <img src="public/images/arena.png" alt="AI Gladiator: two fighters on a dark stage with health and stamina bars, and the decision panel listing a probability for each of the 12 moves">
+</picture>
 
 *Screenshot shows the offline rule-based opponent. In Jev mode the panel shows the model's probabilities.*
+
+### Light and dark mode
+
+Every page has a light and a dark theme. Jev Lab follows your system setting until you use the moon/sun button in the top bar, then remembers your choice in the browser. The code editor and arena stage stay dark in both themes. Screenshots above switch to match GitHub's theme.
 
 ## Requirements
 
@@ -86,6 +98,7 @@ The reading describes the direction of your recent edits. It isn't a grade, and 
 - Imported sources are validated, hashed and atomically cached under `.cache/tutor/sources/` with private file permissions. Entries older than seven days are revalidated. If that refresh fails, a validated stale entry remains usable.
 - Requests are restricted to HTTPS on `neetcode.io` and the official `raw.githubusercontent.com/neetcode-gh/leetcode` repository, with short timeouts, redirect limits, content-type checks and bounded streaming reads.
 - The current NeetCode site renders problem pages in the browser, so the importer uses the same public problem-metadata endpoint as NeetCode's frontend for the visible description. It reads article prose and reference files from the official repository. Upstream HTML, API or repository layout changes may require a parser update.
+- The visible description is converted on the server into a small list of blocks (paragraphs, headings, code, lists) and rendered in the browser with `textContent` only, so NeetCode markup is never parsed as HTML. Hint sections are dropped.
 - Imported text is treated as untrusted model input. Visible starter code is returned as text for the editor; hidden references, raw source records and solution graphs are never returned by browser APIs.
 
 The official [NeetCode solution repository](https://github.com/neetcode-gh/leetcode) is [MIT-licensed](https://github.com/neetcode-gh/leetcode/blob/main/LICENSE). Jev Lab attributes imported problems to NeetCode and keeps the fetched text local. It does not use LeetCode's undocumented GraphQL endpoint or scrape LeetCode pages; [LeetCode's terms prohibit crawling and scraping](https://leetcode.com/terms/).
@@ -105,17 +118,21 @@ Touch devices get on-screen buttons. Full combat rules are under **How to play**
 ## Development
 
 ```sh
-npm test         # deterministic game, scheduler, importer, storage, schema and API tests
+npm test         # game, scheduler, importer, statement formatting, storage, schema and API tests
 npm run build    # rebuild public/tutor/bundle.js after editing public/tutor/*.js
 ```
 
 ```text
 server.js              Local server: file allowlist, security headers, API routes
 jev-ai.js              Builds the Arena's Jev request
-public/index.html      Project dashboard
+public/site.css        Shared design system: colors (light and dark), type, nav, buttons
+public/theme.js        Light/dark theme switch, set before first paint
+public/fonts/          Self-hosted Outfit, Inter and JetBrains Mono (SIL OFL)
+public/index.html      Home page
 public/arena.html      AI Gladiator page; game logic in public/arena/
 public/tutor.html      Coding Navigator page; browser code in public/tutor/
-tutor/                 Navigator server code: prompts, schema, map cache, routes
+tutor/                 Navigator server code: prompts, schema, map cache, routes,
+                       and statement-format.js (NeetCode Markdown to safe display blocks)
 test/                  node:test suites
 ```
 

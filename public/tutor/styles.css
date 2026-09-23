@@ -10,7 +10,7 @@ main {
 }
 .heading h1 {
   margin: 0;
-  font-size: clamp(28px, 3vw, 36px);
+  font-size: clamp(30px, 3.4vw, 40px);
   font-weight: 750;
   letter-spacing: -0.02em;
 }
@@ -226,14 +226,64 @@ textarea:focus {
   background: var(--brand-soft);
 }
 #problem-text {
-  max-height: 540px;
-  margin-bottom: 16px;
+  max-height: min(68vh, 760px);
+  margin: 0 -20px 16px;
+  padding: 0 20px;
   overflow: auto;
   color: var(--ink);
   font-size: 15px;
-  line-height: 1.7;
-  white-space: pre-wrap;
+  line-height: 1.65;
   overflow-wrap: anywhere;
+}
+#problem-text p {
+  margin: 0 0 14px;
+}
+#problem-text h3 {
+  margin: 22px 0 10px;
+  font: 700 16px/1.3 var(--font-display);
+  letter-spacing: 0;
+}
+#problem-text code {
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--code-bg);
+  font: 500 0.86em var(--font-mono);
+  white-space: break-spaces;
+}
+#problem-text pre {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--code-bg);
+  font: 13.5px/1.7 var(--font-mono);
+}
+#problem-text pre code {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  white-space: pre;
+}
+#problem-text .io-label {
+  color: var(--brand-ink);
+  font-weight: 600;
+}
+#problem-text ul,
+#problem-text ol {
+  margin: 0 0 14px;
+  padding-left: 22px;
+}
+#problem-text li {
+  margin: 6px 0;
+}
+#problem-text li::marker {
+  color: var(--ink-3);
+}
+#problem-text strong {
+  font-weight: 650;
 }
 .source-link {
   display: block;
@@ -400,7 +450,7 @@ textarea:focus {
   position: absolute;
   inset: 0;
   border-radius: 10px;
-  background: linear-gradient(90deg, var(--cold), #e4e0ee 50%, var(--hot));
+  background: linear-gradient(90deg, var(--cold), var(--meter-mid) 50%, var(--hot));
   transform: scaleX(0.5);
   transform-origin: left;
   will-change: transform;

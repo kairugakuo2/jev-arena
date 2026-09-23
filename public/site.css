@@ -68,6 +68,56 @@
   --shadow-1: 0 1px 2px rgb(22 21 43 / 6%), 0 1px 1px rgb(22 21 43 / 4%);
   --shadow-2: 0 18px 40px -18px rgb(22 21 43 / 28%), 0 2px 6px rgb(22 21 43 / 6%);
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* Theme-dependent helpers */
+  --nav-bg: rgb(255 255 255 / 90%);
+  --meter-mid: #e4e0ee;
+  --brand-muted: #b9bdf4;
+  --code-bg: #f4f4f9;
+  --accent-text: #4f46e5;
+}
+
+/* Dark theme. theme.js sets data-theme on <html> before first paint. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0e0f16;
+  --surface: #161722;
+  --surface-2: #1e202e;
+  --ink: #ececf6;
+  --ink-2: #b9bacd;
+  --ink-3: #9596ad;
+  --line: #272938;
+  --line-strong: #3a3c52;
+
+  --brand: #5b55ea;
+  --brand-hover: #6d68f0;
+  --brand-ink: #a9b3fd;
+  --brand-soft: #22234a;
+  --on-brand: #ffffff;
+
+  --hot: #ff7a3d;
+  --cold: #4aa3f0;
+  --good: #4ade80;
+  --good-soft: #13301f;
+  --warn: #fbbf24;
+  --warn-soft: #362a0c;
+  --bad: #f87171;
+  --bad-soft: #3a191c;
+
+  --ws: #0a0b12;
+  --ws-2: #11121c;
+  --ws-3: #1b1d2b;
+  --ws-line: #252739;
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-2: 0 18px 44px -18px rgb(0 0 0 / 70%), 0 2px 6px rgb(0 0 0 / 30%);
+
+  --nav-bg: rgb(14 15 22 / 86%);
+  --meter-mid: #3b3d55;
+  --brand-muted: #3f4380;
+  --code-bg: #11121c;
+  --accent-text: #8f8cf8;
 }
 
 *,
@@ -128,6 +178,14 @@ pre {
   font-family: var(--font-mono);
   font-size: 0.9em;
 }
+/* Show != and == as typed, not as ≠ or joined glyphs. !important because
+   the font shorthand used by component rules resets feature settings. */
+code,
+kbd,
+pre,
+samp {
+  font-feature-settings: "liga" 0, "calt" 0 !important;
+}
 kbd {
   display: inline-block;
   min-width: 1.6em;
@@ -186,7 +244,7 @@ kbd {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgb(255 255 255 / 92%);
+  background: var(--nav-bg);
   backdrop-filter: saturate(1.4) blur(8px);
   border-bottom: 1px solid var(--line);
 }
@@ -419,11 +477,11 @@ kbd {
   .nav-end .btn {
     display: none;
   }
-  .status-pill .status-text {
-    display: none;
-  }
+  /* Keep only the colored dot on phones; the text stays for screen readers. */
   .status-pill {
-    padding: 0 10px;
+    gap: 0;
+    padding: 0 11px;
+    font-size: 0;
   }
 }
 @media (max-width: 420px) {
@@ -446,4 +504,38 @@ kbd {
 .editor-panel :focus-visible,
 .step-sample:focus-visible {
   outline-color: var(--ws-brand);
+}
+
+/* Theme toggle */
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink-2);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.theme-toggle:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.theme-toggle .icon {
+  width: 18px;
+  height: 18px;
+}
+.theme-toggle .icon-sun,
+[data-theme="dark"] .theme-toggle .icon-moon {
+  display: none;
+}
+[data-theme="dark"] .theme-toggle .icon-sun {
+  display: block;
+}
+/* Screenshots come in a light and a dark version. */
+[data-theme="dark"] .shot-light,
+:root:not([data-theme="dark"]) .shot-dark {
+  display: none;
 }

@@ -2,6 +2,7 @@ import { createCodeEditor } from './editor.js';
 import { TutorScheduler, smoothPosition, MAX_CODE_BYTES, utf8Bytes } from './scheduler.js';
 import { TutorLocalStore, filterCatalog, groupCatalog, surpriseProblem } from './library.js';
 import { starterFor, readingLevel, isUntouchedLegacyDraft } from './reading.js';
+import { renderBlocks, blocksFromPlainText } from './statement-view.js';
 
 const $ = id => document.getElementById(id);
 const starter = { python:'# Write your solution here.\n', javascript:'// Write your solution here.\n' };
@@ -157,10 +158,18 @@ function renderCatalog() {
   $('surprise-problem').disabled = !filtered.length;
 }
 
+function showStatement(metadata) {
+  const display = metadata.source?.display;
+  let blocks = Array.isArray(display) && display.length ? display : blocksFromPlainText(metadata.statement);
+  // Pasted problems usually start with their title, which is already the heading.
+  const title = $('problem-title').textContent.trim();
+  if (blocks[0]?.type === 'p' && blocks[0].runs?.map(run => run.text).join('').trim() === title) blocks = blocks.slice(1);
+  renderBlocks($('problem-text'),blocks);
+}
 function showPreview(metadata) {
   if (loadedProblem) return;
   loadedProblem = metadata;
-  $('problem-title').textContent = metadata.title || activeCatalogProblem?.title || metadata.statement.split('\n')[0]; $('problem-text').textContent = metadata.statement;
+  $('problem-title').textContent = metadata.title || activeCatalogProblem?.title || metadata.statement.split('\n')[0]; showStatement(metadata);
   document.querySelector('.entry-tabs').hidden = true; $('library-pane').hidden = true; $('custom-pane').hidden = true; $('problem-ready').hidden = false;
   const imported = metadata.source?.kind === 'neetcode';
   $('problem-source').textContent = imported ? `NeetCode · ${activeCatalogProblem?.pattern || '150'}` : 'Custom';

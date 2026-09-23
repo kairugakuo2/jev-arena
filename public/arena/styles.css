@@ -222,7 +222,7 @@ progress.stamina::-moz-progress-bar {
 /* Stage */
 .stage {
   position: relative;
-  height: 250px;
+  height: 290px;
   margin: 14px 20px 0;
   overflow: hidden;
   border-radius: var(--radius-sm);
@@ -546,10 +546,10 @@ progress.stamina::-moz-progress-bar {
   background: var(--surface-2);
 }
 .prob-row progress::-webkit-progress-value {
-  background: #b9bdf4;
+  background: var(--brand-muted);
 }
 .prob-row progress::-moz-progress-bar {
-  background: #b9bdf4;
+  background: var(--brand-muted);
 }
 .prob-row.selected progress::-webkit-progress-value {
   background: var(--brand);
@@ -741,7 +741,7 @@ pre {
     display: none;
   }
   .stage {
-    height: 220px;
+    height: 260px;
     margin: 12px 14px 0;
   }
   .movements,

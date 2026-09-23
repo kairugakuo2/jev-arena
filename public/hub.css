@@ -31,7 +31,7 @@ main {
   line-height: 1.02;
 }
 .accent {
-  color: var(--brand);
+  color: var(--accent-text);
 }
 .lede {
   max-width: 60ch;
@@ -254,9 +254,18 @@ main {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--good-soft)
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231e7b45' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E")
-    center / 12px no-repeat;
+  background: var(--good-soft);
+}
+.checks li::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 7px;
+  width: 6px;
+  height: 10px;
+  border: solid var(--good);
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg);
 }
 
 /* Navigator mini demo (static markup, not a screenshot) */
@@ -308,7 +317,7 @@ main {
   height: 10px;
   margin: 16px 0 8px;
   border-radius: 10px;
-  background: linear-gradient(90deg, var(--cold), #e7e3ef 50%, var(--hot));
+  background: linear-gradient(90deg, var(--cold), var(--meter-mid) 50%, var(--hot));
 }
 .demo-scale i {
   position: absolute;
