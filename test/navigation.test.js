@@ -35,3 +35,15 @@ test("Arena has a project-specific API route while the old path remains compatib
   assert.ok(decisionPaths.has("/api/arena/decide"));
   assert.ok(decisionPaths.has("/api/decide"));
 });
+
+test("public mode adds only the configured origin to the Host and Origin allowlists", async () => {
+  const { accessPolicy } = await import("../server.js");
+  const local = accessPolicy({ port: 3000 });
+  assert.equal(local.publicOrigin, null);
+  assert.deepEqual([...local.hosts], ["localhost:3000", "127.0.0.1:3000"]);
+  const deployed = accessPolicy({ port: 10000, publicUrl: "https://jev-lab.onrender.com" });
+  assert.equal(deployed.publicOrigin, "https://jev-lab.onrender.com");
+  assert.ok(deployed.hosts.has("jev-lab.onrender.com"));
+  assert.ok(deployed.origins.has("https://jev-lab.onrender.com"));
+  assert.ok(!deployed.origins.has("https://evil.example"));
+});

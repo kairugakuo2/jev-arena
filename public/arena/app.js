@@ -10,6 +10,7 @@ import {
   attackConnects,
 } from "./game.js";
 import { chooseRuleAction } from "./rule-ai.js";
+import { visitorHeaders } from "../visitor.js";
 const $ = (id) => document.getElementById(id);
 let game = newGame(),
   mode = "jev",
@@ -284,7 +285,7 @@ async function decide(now) {
     else {
       const response = await fetch("/api/arena/decide", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...visitorHeaders },
         body: JSON.stringify(snapshot),
         signal: controller.signal,
       });

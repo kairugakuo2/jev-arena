@@ -81,6 +81,9 @@ All settings live in `.env`. The server reads it at startup, so restart after ch
 |---|---|---|---|
 | `AI_GATEWAY_API_KEY` | For AI features | none | Your Vercel AI Gateway key |
 | `PORT` | No | `3000` | Local port |
+| `HOST` | No | `127.0.0.1` | Address to listen on. Use `0.0.0.0` when hosting. |
+| `PUBLIC_URL` | When hosting | none | The site's public address, e.g. `https://jev-lab.onrender.com`. Allows that host and origin, and turns on the demo limits. On Render this comes from `RENDER_EXTERNAL_URL` automatically. |
+| `TRUST_PROXY` | When hosting | off | Set to `1` behind a proxy (like Render) so visitors are told apart by their real address. |
 | `TUTOR_MAP_MODEL` | No | `google/gemini-2.5-flash-lite` | Model that builds and reviews solution maps. It must support JSON-schema output through the Gateway. `openai/gpt-5-mini` produces more detailed maps but is slower and costs more. |
 
 ## How the Navigator works
@@ -115,6 +118,30 @@ The official [NeetCode solution repository](https://github.com/neetcode-gh/leetc
 
 Touch devices get on-screen buttons. Full combat rules are under **How to play** on the Arena page.
 
+## Deploy your own
+
+The repo includes a [Render](https://render.com) Blueprint (`render.yaml`), so hosting a public copy takes a few clicks:
+
+1. **Protect your key first.** In the Vercel dashboard, give your AI Gateway key a spending limit, or create a separate key just for the demo so you can revoke it on its own.
+2. Sign in to Render with GitHub, then choose **New → Blueprint** and pick this repository.
+3. Paste your `AI_GATEWAY_API_KEY` when Render asks for it, and deploy.
+
+Render builds the editor bundle, starts the server and gives you an `https://….onrender.com` link. Every push to `main` redeploys.
+
+**Free plan notes:** the service sleeps after 15 minutes without visitors, and the next visit takes about a minute to wake it, so open the link shortly before you present. Render's disk resets on each restart, so the first time someone opens a problem after that, its map is rebuilt (about 20 seconds). The $7/month Starter plan stays awake.
+
+### Demo limits
+
+When the site is public, paid AI calls are rate limited. Browsing and the Arena's rule-based mode are never limited.
+
+| What | Per visitor, per hour | Per network, per hour | Whole site, per day |
+|---|---|---|---|
+| Jev moves in the Arena | 600 (about 3 battles) | 3,000 | 8,000 |
+| Navigator readings | 600 | 3,000 | 8,000 |
+| New problem setups | 15 | 60 | 150 |
+
+A visitor is a random ID each browser keeps. The per-network limit is looser, so a room full of people on one Wi-Fi can all use the demo. Opening a problem whose map is already cached doesn't count. Past a limit, visitors see a short message saying when to try again. Change any number with an environment variable named `RATE_<WHAT>_<SCOPE>`, for example `RATE_ARENA_VISITOR=300` or `RATE_PREPARE_DAILY=50` (`WHAT` is `ARENA`, `EVALUATE` or `PREPARE`; `SCOPE` is `VISITOR`, `IP` or `DAILY`). Limits reset when the server restarts, so the spending limit on your key is the real backstop.
+
 ## Development
 
 ```sh
@@ -123,7 +150,9 @@ npm run build    # rebuild public/tutor/bundle.js after editing public/tutor/*.j
 ```
 
 ```text
-server.js              Local server: file allowlist, security headers, API routes
+server.js              Server: file allowlist, security headers, host/origin checks, API routes
+rate-limit.js          Demo rate limits for paid AI calls when the site is public
+render.yaml            Render Blueprint for hosting
 jev-ai.js              Builds the Arena's Jev request
 public/site.css        Shared design system: colors (light and dark), type, nav, buttons
 public/theme.js        Light/dark theme switch, set before first paint
@@ -140,7 +169,7 @@ test/                  node:test suites
 
 ## Limitations
 
-- **Local only.** The server binds to `127.0.0.1` and rejects requests from other origins. It isn't built to be hosted publicly.
+- **Small-scale hosting only.** Locally the server listens on `127.0.0.1` only. When hosted, it accepts only its configured public address and applies the demo limits above. Everything (jobs, caches, limits) lives in one process, so it's meant for a single small instance, not a fleet.
 - **Costs money to use.** Every Navigator reading and every Jev move in the Arena is a paid Gateway call. Preparing a new problem makes several larger model calls.
 - **Occasional dropped readings.** The Gateway sometimes returns "high demand" errors for Jev. The app retries with backoff, and the meter holds its last reading in the meantime.
 - **The map isn't exhaustive.** A valid approach the mapmaker didn't anticipate may read as neutral rather than hotter.

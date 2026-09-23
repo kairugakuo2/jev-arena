@@ -167,3 +167,38 @@ test('uncached graphs queue serially, deduplicate, and never block cached proble
   pending[1](); await new Promise(resolve=>setImmediate(resolve));
   assert.equal((await call(handler,'GET',`/api/tutor/problems/${ids.get(second)}`)).body.status,'ready');
 });
+
+async function callWithHeaders(handler, method, path, data) {
+  const request = Readable.from([Buffer.from(JSON.stringify(data ?? {}))]);
+  Object.assign(request, { method, headers: { 'content-type': 'application/json' } });
+  const response = { writeHead(status, headers = {}) { this.status = status; this.headers = headers; }, end(body) { this.body = JSON.parse(body); } };
+  await handler(request, response, path);
+  return response;
+}
+
+test('demo limits refuse extra readings and new problems with Retry-After, before any model call', async () => {
+  const { RateLimiter } = await import('../rate-limit.js');
+  const limiter = new RateLimiter({ limits: { arena: { visitor: 9, ip: 9, daily: 9 }, evaluate: { visitor: 1, ip: 9, daily: 9 }, prepare: { visitor: 1, ip: 9, daily: 9 } } });
+  let evaluations = 0, preparations = 0;
+  const handler = createTutorHandler({ limiter, identify: () => ({ ip: '1.1.1.1', visitor: 'v' }),
+    store: { get: async () => record, idFor: () => 'e'.repeat(64), metadata: () => ({ problemId: 'e'.repeat(64), graphVersion: 'v1' }),
+      prepare: async () => { preparations++; return new Promise(() => {}); } },
+    evaluate: async () => { evaluations++; return { hotter: .6, colder: .4 }; } });
+  assert.equal((await callWithHeaders(handler, 'POST', '/api/tutor/evaluate', evaluationFixture())).status, 200);
+  const limited = await callWithHeaders(handler, 'POST', '/api/tutor/evaluate', { ...evaluationFixture(), sessionId: 'other-session' });
+  assert.equal(limited.status, 429);
+  assert.match(limited.headers['Retry-After'], /^\d+$/);
+  assert.match(limited.body.error, /hourly limit for Navigator readings/);
+  assert.equal(evaluations, 1);
+
+  // A problem whose map is already cached is free and doesn't use the allowance.
+  const cached = await callWithHeaders(handler, 'POST', '/api/tutor/problems', { statement });
+  assert.equal(cached.status, 200);
+  const uncached = createTutorHandler({ limiter, identify: () => ({ ip: '1.1.1.1', visitor: 'v' }),
+    store: { get: async () => { throw Error('missing'); }, idFor: text => String(text.length).padStart(64, 'f'), prepare: async () => { preparations++; return new Promise(() => {}); } } });
+  assert.equal((await callWithHeaders(uncached, 'POST', '/api/tutor/problems', { statement })).status, 202);
+  const refused = await callWithHeaders(uncached, 'POST', '/api/tutor/problems', { statement: statement + ' (variant)' });
+  assert.equal(refused.status, 429);
+  assert.match(refused.body.error, /new problem setups/);
+  assert.equal(preparations, 1);
+});

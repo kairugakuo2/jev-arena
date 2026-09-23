@@ -4,6 +4,7 @@ import { evaluateCode } from './models.js';
 import { validateEvaluation } from './schema.js';
 import { NEETCODE_CATALOG, NEETCODE_CATALOG_VERSION } from './neetcode-catalog.js';
 import { NeetCodeImporter } from './neetcode-importer.js';
+import { limitMessage, sendLimited } from '../rate-limit.js';
 
 function json(res, status, data) {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -22,7 +23,9 @@ async function readJson(req, limit = 524288) {
   catch { throw Object.assign(Error('Invalid JSON.'), { status: 400 }); }
 }
 
-export function createTutorHandler({ store = new GraphStore(), evaluate = evaluateCode, catalog = NEETCODE_CATALOG, importer = new NeetCodeImporter({ catalog }) } = {}) {
+// limiter is optional (no limits locally); identify(req) returns { ip, visitor } for it.
+export function createTutorHandler({ store = new GraphStore(), evaluate = evaluateCode, catalog = NEETCODE_CATALOG, importer = new NeetCodeImporter({ catalog }),
+  limiter = null, identify = () => ({ ip:'local', visitor:'local' }), maxSessions = 12 } = {}) {
   const jobs = new Map(), sessions = new Set();
   const catalogBySlug = new Map(catalog.map(problem => [problem.slug, problem]));
   let preparationTail = Promise.resolve();
@@ -65,6 +68,9 @@ export function createTutorHandler({ store = new GraphStore(), evaluate = evalua
           if (jobs.has(jobId) && !['failed','ready'].includes(jobs.get(jobId).status)) {
             json(res,202,{ problemId:jobId, status:jobs.get(jobId).status }); return true;
           }
+          const identity = identify(req);
+          const allowance = limiter?.check('prepare', identity);
+          if (allowance && !allowance.ok) { sendLimited(res, allowance); return true; }
           if (!reserveJob(jobId,{ status:'importing' })) { json(res,429,{ error:'Several problems are already preparing. Please try again shortly.' }); return true; }
           (async () => {
             try {
@@ -77,12 +83,15 @@ export function createTutorHandler({ store = new GraphStore(), evaluate = evalua
               try {
                 jobs.set(jobId,{ status:'ready', ...store.metadata(await store.get(problemId)), source });
               } catch {
+                // Only building a new map costs Gateway calls; cached maps above are free.
+                const taken = limiter?.take('prepare', identity);
+                if (taken && !taken.ok) throw Object.assign(Error(limitMessage(taken)), { limited: true });
                 const metadata = await prepareInOrder(jobId, imported.statement, { referenceMaterial:imported.referenceMaterial, source });
                 jobs.set(jobId,{ status:'ready', ...metadata, source });
               }
-            } catch {
+            } catch (error) {
               const hasPreview = Boolean(jobs.get(jobId)?.preview);
-              updateJob(jobId,{ status:'failed', error:hasPreview
+              updateJob(jobId,{ status:'failed', error:error.limited ? error.message : hasPreview
                 ? 'The problem is open, but Jev feedback could not be prepared. Keep coding or retry feedback.'
                 : 'NeetCode could not load this problem. Try again, or use the Custom tab.',
                 source:{ kind:'neetcode', slug:problem.slug, url:problem.questionUrl } });
@@ -99,6 +108,8 @@ export function createTutorHandler({ store = new GraphStore(), evaluate = evalua
           json(res,202,{ problemId, status: jobs.get(problemId).status }); return true;
         }
         const preview = { statement:input.statement, title:input.statement.split('\n')[0] };
+        const taken = limiter?.take('prepare', identify(req));
+        if (taken && !taken.ok) { sendLimited(res, taken); return true; }
         if (!reserveJob(problemId,{ status:'queued', preview })) { json(res,429,{ error:'Several problems are already preparing. Please try again shortly.' }); return true; }
         prepareInOrder(problemId,input.statement,{}).then(metadata => {
           jobs.set(problemId,{ status:'ready', ...metadata });
@@ -122,9 +133,11 @@ export function createTutorHandler({ store = new GraphStore(), evaluate = evalua
         let input;
         try { input = validateEvaluation(raw); }
         catch { json(res,400,{ error:'Invalid code snapshot or edit history.' }); return true; }
-        if (sessions.has(input.sessionId) || sessions.size >= 4) {
+        if (sessions.has(input.sessionId) || sessions.size >= maxSessions) {
           json(res,429,{ error:'An evaluation is already running. Please wait.' }); return true;
         }
+        const taken = limiter?.take('evaluate', identify(req));
+        if (taken && !taken.ok) { sendLimited(res, taken); return true; }
         sessions.add(input.sessionId);
         try {
           let record;

@@ -1,5 +1,13 @@
 # Version history
 
+## 6.1.0 — Hostable demo
+
+- Deploy to Render with the included `render.yaml` Blueprint.
+- Public mode: `HOST`, plus `PUBLIC_URL` or Render's `RENDER_EXTERNAL_URL`, adds that one host and origin to the allowlist. Localhost stays allowed; everything else is still refused.
+- Demo rate limits for paid AI calls (Arena moves, Navigator readings, new problem setups), per visitor, per network and per day, with plain "try again in N minutes" messages. Cached problems don't count.
+- Several people can play the Arena against Jev at once (previously one decision at a time across the whole server), and up to 12 Navigator readings can run in parallel.
+- Browser IDs no longer rely on `crypto.randomUUID`, which is missing on plain-HTTP pages.
+
 ## 6.0.0 — Redesign
 
 - New look across the site: a light layout with indigo as the brand color, while the code editor and arena stage stay dark.

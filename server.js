@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { chooseJevAction, buildJevRequest } from "./jev-ai.js";
 import { ACTIONS, distanceBetween } from "./public/arena/game.js";
 import { createTutorHandler } from "./tutor/routes.js";
+import { RateLimiter, limitsFromEnv, clientIdentity, sendLimited } from "./rate-limit.js";
 
 export const staticFiles = {
   "/": ["index.html", "text/html"],
@@ -13,6 +14,7 @@ export const staticFiles = {
   "/arena/": ["arena.html", "text/html"],
   "/site.css": ["site.css", "text/css"],
   "/theme.js": ["theme.js", "text/javascript"],
+  "/visitor.js": ["visitor.js", "text/javascript"],
   "/favicon.svg": ["favicon.svg", "image/svg+xml"],
   "/favicon.ico": ["favicon.svg", "image/svg+xml"],
   "/hub.css": ["hub.css", "text/css"],
@@ -35,9 +37,42 @@ export const staticFiles = {
 };
 export const decisionPaths = new Set(["/api/arena/decide", "/api/decide"]);
 const port = Number(process.env.PORT || 3000);
-const hosts = new Set([`localhost:${port}`, `127.0.0.1:${port}`]);
-let activeRequest = false;
-const handleTutor = createTutorHandler();
+const bindHost = process.env.HOST || "127.0.0.1";
+
+// Which Host and Origin headers are accepted. Always localhost; plus the public
+// URL when deployed (PUBLIC_URL, or Render's automatic RENDER_EXTERNAL_URL).
+export function accessPolicy({ port, publicUrl } = {}) {
+  const hosts = new Set([`localhost:${port}`, `127.0.0.1:${port}`]);
+  const origins = new Set([`http://localhost:${port}`, `http://127.0.0.1:${port}`]);
+  let publicOrigin = null;
+  if (publicUrl) {
+    const url = new URL(publicUrl);
+    hosts.add(url.host);
+    origins.add(url.origin);
+    publicOrigin = url.origin;
+  }
+  return { hosts, origins, publicOrigin };
+}
+const { hosts, origins, publicOrigin } = accessPolicy({
+  port,
+  publicUrl: process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL,
+});
+
+// Demo limits apply to paid Gateway calls whenever the site is public.
+const limiter = publicOrigin || process.env.RATE_LIMITS === "1"
+  ? new RateLimiter({ limits: limitsFromEnv() })
+  : null;
+const identify = (request) =>
+  clientIdentity(request, { trustProxy: process.env.TRUST_PROXY === "1" });
+
+// One Arena decision in flight per visitor, and a few at most overall.
+const MAX_ARENA_IN_FLIGHT = 8;
+const arenaInFlight = new Set();
+const handleTutor = createTutorHandler({
+  limiter,
+  identify,
+  maxSessions: Number(process.env.MAX_EVALUATIONS) || 12,
+});
 
 function json(response, status, data) {
   response.writeHead(status, {
@@ -109,12 +144,7 @@ export const server = createServer(async (request, response) => {
   // Localhost binding + Host/Origin checks stop other websites using your local key.
   if (!hosts.has(request.headers.host))
     return json(response, 403, { error: "Local requests only." });
-  if (
-    request.headers.origin &&
-    ![`http://localhost:${port}`, `http://127.0.0.1:${port}`].includes(
-      request.headers.origin,
-    )
-  ) {
+  if (request.headers.origin && !origins.has(request.headers.origin)) {
     return json(response, 403, {
       error: "Cross-origin requests are not allowed.",
     });
@@ -124,16 +154,20 @@ export const server = createServer(async (request, response) => {
   if (request.method === "GET" && path === "/api/status") {
     return json(response, 200, {
       configured: Boolean(process.env.AI_GATEWAY_API_KEY),
+      public: Boolean(publicOrigin),
     });
   }
   if (request.method === "POST" && decisionPaths.has(path)) {
-    if (activeRequest)
+    const identity = identify(request);
+    if (arenaInFlight.has(identity.visitor) || arenaInFlight.size >= MAX_ARENA_IN_FLIGHT)
       return json(response, 429, {
         error: "A decision is already running. Please wait.",
       });
     if (!request.headers["content-type"]?.startsWith("application/json"))
       return json(response, 415, { error: "Send JSON." });
-    activeRequest = true;
+    const allowance = limiter?.take("arena", identity);
+    if (allowance && !allowance.ok) return sendLimited(response, allowance);
+    arenaInFlight.add(identity.visitor);
     try {
       let body = "";
       for await (const chunk of request) {
@@ -157,7 +191,7 @@ export const server = createServer(async (request, response) => {
         return json(response, 502, { error: error.message });
       }
     } finally {
-      activeRequest = false;
+      arenaInFlight.delete(identity.visitor);
     }
   }
   if (request.method !== "GET" || !staticFiles[path])
@@ -185,8 +219,12 @@ export const server = createServer(async (request, response) => {
 });
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  server.listen(port, "127.0.0.1", () =>
-    console.log(`Jev Lab → http://localhost:${port}`),
+  server.listen(port, bindHost, () =>
+    console.log(
+      publicOrigin
+        ? `Jev Lab → ${publicOrigin} (listening on ${bindHost}:${port}, demo limits on)`
+        : `Jev Lab → http://localhost:${port}`,
+    ),
   );
   server.on("error", (error) => {
     console.error(

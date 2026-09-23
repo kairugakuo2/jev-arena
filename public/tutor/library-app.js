@@ -3,6 +3,7 @@ import { TutorScheduler, smoothPosition, MAX_CODE_BYTES, utf8Bytes } from './sch
 import { TutorLocalStore, filterCatalog, groupCatalog, surpriseProblem } from './library.js';
 import { starterFor, readingLevel, isUntouchedLegacyDraft } from './reading.js';
 import { renderBlocks, blocksFromPlainText } from './statement-view.js';
+import { visitorHeaders, randomId } from '../visitor.js';
 
 const $ = id => document.getElementById(id);
 const starter = { python:'# Write your solution here.\n', javascript:'// Write your solution here.\n' };
@@ -36,7 +37,7 @@ try {
 
 async function api(path, body, timeout = 4000) {
   const response = await fetch(path, { method:body === undefined ? 'GET' : 'POST',
-    headers:body === undefined ? {} : { 'Content-Type':'application/json' },
+    headers:body === undefined ? { ...visitorHeaders } : { 'Content-Type':'application/json', ...visitorHeaders },
     body:body === undefined ? undefined : JSON.stringify(body), signal:AbortSignal.timeout(timeout) });
   const data = await response.json();
   if (!response.ok) {
@@ -123,7 +124,7 @@ const editor = createCodeEditor({ parent:$('editor'), nonce:document.querySelect
 
 function newSession(baseline = editor.code()) {
   clearMeter();
-  scheduler.reset(problem ? { problemId:problem.problemId, graphVersion:problem.graphVersion, language, sessionId:crypto.randomUUID() } : null,baseline);
+  scheduler.reset(problem ? { problemId:problem.problemId, graphVersion:problem.graphVersion, language, sessionId:randomId() } : null,baseline);
   if (problem && editor.code() !== baseline) scheduler.edit(editor.code(),[{ from:0,to:baseline.length,insert:editor.code() }]);
   $('graph-info').textContent = problem ? `${problem.model || 'Jev map'} · ${problem.graphVersion}` : 'No graph active';
 }

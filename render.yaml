@@ -1,0 +1,21 @@
+# Render Blueprint: New → Blueprint → pick this repo. Render asks for the
+# Gateway key; everything else is set here. Free plan sleeps after 15 idle minutes.
+services:
+  - type: web
+    name: jev-lab
+    runtime: node
+    plan: free
+    # esbuild is a devDependency, so install dev packages for the build step.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Listen publicly; Render's RENDER_EXTERNAL_URL becomes the allowed origin.
+      - key: HOST
+        value: 0.0.0.0
+      # Read the visitor's address from Render's X-Forwarded-For header.
+      - key: TRUST_PROXY
+        value: "1"
+      - key: AI_GATEWAY_API_KEY
+        sync: false
